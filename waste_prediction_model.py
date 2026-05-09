@@ -16,6 +16,10 @@
 
 # %%
 # !pip install xgboost scikit-learn pandas numpy matplotlib seaborn -q
+# ↑ Uncomment the line above when running in Google Colab.
+#   It is commented out because "!" is Jupyter magic syntax,
+#   not valid Python, and causes a parse error in .py files.
+
 
 import pandas as pd
 import numpy as np
@@ -353,66 +357,91 @@ plt.tight_layout()
 plt.show()
 
 # %% [markdown]
-# # Section 9: Best Model — Hyperparameter Tuning
+# # Section 9: Best Model — Dynamic Hyperparameter Tuning
+#
+# Instead of hardcoding a single model, we dynamically select and tune
+# whichever model performed best in Section 7/8.
 
 # %%
-# --- 9.1 XGBoost Hyperparameter Tuning (Wet Waste) ---
-print("=" * 60)
-print("HYPERPARAMETER TUNING — XGBoost (Wet Waste)")
-print("=" * 60)
-
-xgb_pipe = Pipeline([
-    ('prep', preprocessor),
-    ('model', XGBRegressor(random_state=42, verbosity=0))
-])
-
-param_grid = {
-    'model__n_estimators': [200, 300, 500],
-    'model__max_depth': [4, 6, 8],
-    'model__learning_rate': [0.05, 0.08, 0.1],
-    'model__subsample': [0.8, 0.9],
+# --- 9.0 Define Hyperparameter Grids for All Models ---
+PARAM_GRIDS = {
+    'Linear Regression': {},  # No hyperparameters to tune
+    'Ridge Regression': {
+        'model__alpha': [0.01, 0.1, 1.0, 10.0, 100.0],
+    },
+    'Lasso Regression': {
+        'model__alpha': [0.001, 0.005, 0.01, 0.05, 0.1],
+    },
+    'Random Forest': {
+        'model__n_estimators': [100, 200, 400],
+        'model__max_depth': [10, 15, 20, None],
+        'model__min_samples_split': [2, 5, 10],
+    },
+    'Gradient Boosting': {
+        'model__n_estimators': [100, 200, 300],
+        'model__max_depth': [3, 5, 7],
+        'model__learning_rate': [0.05, 0.1, 0.2],
+    },
+    'XGBoost': {
+        'model__n_estimators': [200, 300, 500],
+        'model__max_depth': [4, 6, 8],
+        'model__learning_rate': [0.05, 0.08, 0.1],
+        'model__subsample': [0.8, 0.9],
+    },
 }
 
-grid_wet = GridSearchCV(
-    xgb_pipe, param_grid, cv=5,
-    scoring='r2', n_jobs=-1, verbose=0
-)
-grid_wet.fit(X_train, y_wet_train)
+def tune_best_model(model_name, X_tr, y_tr):
+    """Tune the given model using GridSearchCV, or just retrain if no grid."""
+    pipe = get_models()[model_name]
+    grid = PARAM_GRIDS.get(model_name, {})
+    if not grid:
+        print(f"  {model_name} has no tunable hyperparameters. Retraining as-is...")
+        pipe.fit(X_tr, y_tr)
+        return pipe, {}
+    print(f"  Tuning {model_name} via GridSearchCV (5-fold CV)...")
+    search = GridSearchCV(pipe, grid, cv=5, scoring='r2', n_jobs=-1, verbose=0)
+    search.fit(X_tr, y_tr)
+    print(f"  Best Params: {search.best_params_}")
+    print(f"  Best CV R2:  {search.best_score_:.4f}")
+    return search.best_estimator_, search.best_params_
 
-print(f"Best Params: {grid_wet.best_params_}")
-print(f"Best CV R2:  {grid_wet.best_score_:.4f}")
+# --- 9.1 Identify Best Models from Section 7/8 ---
+best_wet_name = wet_df['R2'].idxmax()
+best_dry_name = dry_df['R2'].idxmax()
 
-# --- 9.2 XGBoost Tuning (Dry Waste) ---
-print("\n" + "=" * 60)
-print("HYPERPARAMETER TUNING — XGBoost (Dry Waste)")
+print("=" * 60)
+print("DYNAMIC MODEL SELECTION & HYPERPARAMETER TUNING")
 print("=" * 60)
 
-grid_dry = GridSearchCV(
-    xgb_pipe, param_grid, cv=5,
-    scoring='r2', n_jobs=-1, verbose=0
-)
-grid_dry.fit(X_train, y_dry_train)
+# --- 9.2 Tune Best Wet Waste Model ---
+print(f"\n--- Wet Waste: Best model = {best_wet_name} "
+      f"(R2={wet_df.loc[best_wet_name, 'R2']:.4f}) ---")
+best_wet_model, best_wet_params = tune_best_model(
+    best_wet_name, X_train, y_wet_train)
 
-print(f"Best Params: {grid_dry.best_params_}")
-print(f"Best CV R2:  {grid_dry.best_score_:.4f}")
+# --- 9.3 Tune Best Dry Waste Model ---
+print(f"\n--- Dry Waste: Best model = {best_dry_name} "
+      f"(R2={dry_df.loc[best_dry_name, 'R2']:.4f}) ---")
+best_dry_model, best_dry_params = tune_best_model(
+    best_dry_name, X_train, y_dry_train)
 
 # %% [markdown]
 # # Section 10: Final Evaluation with Tuned Models
 
 # %%
-# --- 10.1 Evaluate Tuned Models on Test Set ---
-best_wet_model = grid_wet.best_estimator_
-best_dry_model = grid_dry.best_estimator_
+# --- 10.1 Evaluate Selected/Tuned Models on Test Set ---
+# best_wet_model and best_dry_model are already set in Section 9
 
 y_wet_pred_final = best_wet_model.predict(X_test)
 y_dry_pred_final = best_dry_model.predict(X_test)
 
 print("=" * 60)
-print("FINAL TUNED MODEL — TEST SET RESULTS")
+print("FINAL SELECTED MODEL — TEST SET RESULTS")
 print("=" * 60)
-for label, y_true, y_pred in [("Wet Waste", y_wet_test, y_wet_pred_final),
-                               ("Dry Waste", y_dry_test, y_dry_pred_final)]:
-    print(f"\n--- {label} ---")
+for label, model_name, y_true, y_pred in [
+        ("Wet Waste", best_wet_name, y_wet_test, y_wet_pred_final),
+        ("Dry Waste", best_dry_name, y_dry_test, y_dry_pred_final)]:
+    print(f"\n--- {label} (Model: {model_name}) ---")
     print(f"  RMSE:  {np.sqrt(mean_squared_error(y_true, y_pred)):.4f}")
     print(f"  MAE:   {mean_absolute_error(y_true, y_pred):.4f}")
     print(f"  R2:    {r2_score(y_true, y_pred):.4f}")
@@ -484,23 +513,35 @@ feature_names = (num_features +
                       .named_transformers_['cat']
                       .get_feature_names_out(cat_features)))
 
+# Helper: extract feature importance (works for tree-based models;
+# for linear models we use absolute coefficient values instead)
+def get_importances(model_pipeline):
+    """Return feature importances from the fitted model step."""
+    fitted_model = model_pipeline.named_steps['model']
+    if hasattr(fitted_model, 'feature_importances_'):
+        return fitted_model.feature_importances_
+    elif hasattr(fitted_model, 'coef_'):
+        return np.abs(fitted_model.coef_)  # absolute coefficients for linear models
+    else:
+        return np.zeros(len(feature_names))
+
 # Wet Waste Feature Importance
-wet_importance = best_wet_model.named_steps['model'].feature_importances_
+wet_importance = get_importances(best_wet_model)
 wet_imp_df = pd.DataFrame({'Feature': feature_names, 'Importance': wet_importance})
 wet_imp_df = wet_imp_df.sort_values('Importance', ascending=True).tail(12)
 
 # Dry Waste Feature Importance
-dry_importance = best_dry_model.named_steps['model'].feature_importances_
+dry_importance = get_importances(best_dry_model)
 dry_imp_df = pd.DataFrame({'Feature': feature_names, 'Importance': dry_importance})
 dry_imp_df = dry_imp_df.sort_values('Importance', ascending=True).tail(12)
 
 fig, axes = plt.subplots(1, 2, figsize=(16, 6))
 axes[0].barh(wet_imp_df['Feature'], wet_imp_df['Importance'], color='#2196F3')
-axes[0].set_title('Top 12 Features — Wet Waste', fontsize=13)
+axes[0].set_title(f'Top 12 Features — Wet Waste ({best_wet_name})', fontsize=13)
 axes[0].set_xlabel('Importance')
 
 axes[1].barh(dry_imp_df['Feature'], dry_imp_df['Importance'], color='#FF9800')
-axes[1].set_title('Top 12 Features — Dry Waste', fontsize=13)
+axes[1].set_title(f'Top 12 Features — Dry Waste ({best_dry_name})', fontsize=13)
 axes[1].set_xlabel('Importance')
 plt.tight_layout()
 plt.show()
@@ -510,16 +551,16 @@ plt.show()
 
 # %%
 print("=" * 60)
-print("5-FOLD CROSS-VALIDATION — Tuned XGBoost")
+print(f"5-FOLD CROSS-VALIDATION — Best Models")
 print("=" * 60)
 
 cv_wet = cross_val_score(best_wet_model, X, y_wet, cv=5, scoring='r2', n_jobs=-1)
 cv_dry = cross_val_score(best_dry_model, X, y_dry, cv=5, scoring='r2', n_jobs=-1)
 
-print(f"\nWet Waste CV R2 scores: {cv_wet.round(4)}")
+print(f"\nWet Waste ({best_wet_name}) CV R2 scores: {cv_wet.round(4)}")
 print(f"  Mean: {cv_wet.mean():.4f} (+/- {cv_wet.std():.4f})")
 
-print(f"\nDry Waste CV R2 scores: {cv_dry.round(4)}")
+print(f"\nDry Waste ({best_dry_name}) CV R2 scores: {cv_dry.round(4)}")
 print(f"  Mean: {cv_dry.mean():.4f} (+/- {cv_dry.std():.4f})")
 
 # %% [markdown]
@@ -570,9 +611,12 @@ print(f"  Predicted Dry Waste: {dry_pred:.2f} tons")
 # | Aspect | Details |
 # |--------|---------|
 # | Dataset | 3000 rows, 10 original + 4 engineered features |
-# | Best Model | XGBoost (tuned via GridSearchCV) |
+# | Best Model | Dynamically selected (highest R2 from model comparison) |
+# | Tuning | GridSearchCV on the best model (or retrain if no hyperparams) |
 # | Preprocessing | StandardScaler (numeric) + OneHotEncoder (categorical) |
 # | Evaluation | RMSE, MAE, R2, MAPE + 5-fold CV |
 # | Models Compared | Linear, Ridge, Lasso, Random Forest, Gradient Boosting, XGBoost |
 
+print(f"\nBest Wet Waste Model: {best_wet_name}")
+print(f"Best Dry Waste Model: {best_dry_name}")
 print("\n[DONE] Pipeline complete.")
