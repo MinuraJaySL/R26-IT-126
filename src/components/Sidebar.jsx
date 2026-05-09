@@ -8,7 +8,6 @@ import {
   Route,
   ChevronLeft,
   ChevronRight,
-  Recycle,
 } from 'lucide-react';
 
 const navItems = [
@@ -33,8 +32,8 @@ export default function Sidebar({ collapsed, setCollapsed }) {
     >
       {/* Logo */}
       <div className="flex h-16 items-center gap-3 border-b px-4" style={{ borderColor: 'var(--border-color)' }}>
-        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl gradient-primary">
-          <Recycle size={22} className="text-white" />
+        <div className="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden">
+          <img src="/logo.png" alt="Logo" className="h-full w-full object-contain" />
         </div>
         <AnimatePresence>
           {!collapsed && (
@@ -83,11 +82,6 @@ export default function Sidebar({ collapsed, setCollapsed }) {
                 </motion.span>
               )}
             </AnimatePresence>
-            {!collapsed && item.component === 3 && (
-              <span className="ml-auto rounded-md bg-primary-500/10 px-1.5 py-0.5 text-xs font-bold text-primary-500">
-                ML
-              </span>
-            )}
           </NavLink>
         ))}
       </nav>

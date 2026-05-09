@@ -25,10 +25,8 @@ export default function FillLevelMonitoring() {
           <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-amber-500/10"><Gauge size={22} className="text-amber-500" /></div>
           <div>
             <h1 className="text-2xl font-bold" style={{ color: 'var(--text-primary)' }}>Smart Fill-Level & Occupancy Monitoring</h1>
-            <p className="text-sm" style={{ color: 'var(--text-secondary)' }}>Component 2 — Real-time bin monitoring and overflow detection</p>
           </div>
         </div>
-        <Badge variant="info" className="mt-3">Placeholder — Static Data</Badge>
       </motion.div>
 
       <AnimatedCard delay={0.1} hover={false}>

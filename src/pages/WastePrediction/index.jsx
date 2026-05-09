@@ -71,16 +71,13 @@ export default function WastePrediction() {
       {/* Header */}
       <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }}>
         <div className="flex items-center gap-3">
-          <div className="flex h-10 w-10 items-center justify-center rounded-xl gradient-primary">
-            <BrainCircuit size={22} className="text-white" />
+          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-green-500/10">
+            <BrainCircuit size={22} className="text-green-500" />
           </div>
           <div>
             <h1 className="text-2xl font-bold" style={{ color: 'var(--text-primary)' }}>
-              ML-Based Waste Prediction & Composition Estimation
+              Waste Prediction & Composition Estimation
             </h1>
-            <p className="text-sm" style={{ color: 'var(--text-secondary)' }}>
-              Component 3 — Advanced predictive analytics for municipal waste forecasting
-            </p>
           </div>
         </div>
       </motion.div>
@@ -100,11 +97,10 @@ export default function WastePrediction() {
             <button
               key={tab.id}
               onClick={() => setActiveTab(tab.id)}
-              className={`flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-medium transition-all duration-200 ${
-                activeTab === tab.id
+              className={`flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-medium transition-all duration-200 ${activeTab === tab.id
                   ? 'bg-primary-500 text-white shadow-lg shadow-primary-500/25'
                   : 'hover:bg-surface-100 dark:hover:bg-surface-700/50'
-              }`}
+                }`}
               style={{
                 color: activeTab === tab.id ? '#ffffff' : 'var(--text-secondary)',
               }}
