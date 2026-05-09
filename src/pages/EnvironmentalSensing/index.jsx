@@ -34,12 +34,8 @@ export default function EnvironmentalSensing() {
             <h1 className="text-2xl font-bold" style={{ color: 'var(--text-primary)' }}>
               Environmental Sensing Smart Bin
             </h1>
-            <p className="text-sm" style={{ color: 'var(--text-secondary)' }}>
-              Component 1 — IoT sensor monitoring and environmental data
-            </p>
           </div>
         </div>
-        <Badge variant="info" className="mt-3">Placeholder — Static Data</Badge>
       </motion.div>
 
       {/* Smart Bin Status */}

@@ -1,15 +1,15 @@
 import { useState } from 'react';
 import { motion } from 'framer-motion';
-import { MapPin, CloudRain, Users, Calendar, CalendarDays, Sparkles, Droplets, Package, Zap } from 'lucide-react';
+import { MapPin, CloudRain, Users, Calendar, CalendarDays, Sparkles, Droplets, Package, Zap, Home, Store, GraduationCap, Building, Umbrella } from 'lucide-react';
 import AnimatedCard from '../../components/ui/AnimatedCard';
 import Toggle from '../../components/ui/Toggle';
 
 const zoneTypes = [
-  { value: 'residential', label: 'Residential', emoji: '🏘️' },
-  { value: 'market', label: 'Market', emoji: '🏪' },
-  { value: 'school', label: 'School', emoji: '🏫' },
-  { value: 'office', label: 'Office', emoji: '🏢' },
-  { value: 'tourist_area', label: 'Tourist Area', emoji: '🏖️' },
+  { value: 'residential', label: 'Residential', icon: Home },
+  { value: 'market', label: 'Market', icon: Store },
+  { value: 'school', label: 'School', icon: GraduationCap },
+  { value: 'office', label: 'Office', icon: Building },
+  { value: 'tourist_area', label: 'Tourist Area', icon: Umbrella },
 ];
 
 const weekTypes = [
@@ -54,7 +54,7 @@ export default function PredictionInputPanel({ onPredict }) {
                   <button key={z.value} type="button" onClick={() => update('zoneType', z.value)}
                     className={`flex flex-col items-center gap-1 rounded-xl border-2 px-2 py-3 text-xs font-medium transition-all ${formData.zoneType === z.value ? 'border-primary-500 bg-primary-500/10 text-primary-500' : 'border-transparent hover:border-primary-500/30'}`}
                     style={formData.zoneType !== z.value ? { backgroundColor: 'var(--bg-tertiary)', color: 'var(--text-secondary)' } : {}}>
-                    <span className="text-xl">{z.emoji}</span><span>{z.label}</span>
+                    <z.icon size={22} className="mb-0.5" /><span>{z.label}</span>
                   </button>
                 ))}
               </div>
