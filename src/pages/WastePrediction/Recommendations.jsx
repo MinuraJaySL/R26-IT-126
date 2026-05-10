@@ -28,15 +28,15 @@ export default function Recommendations({ recommendations, prediction }) {
 
   return (
     <div className="space-y-6">
-      <AnimatedCard delay={0.1} hover={false} className="gradient-primary text-white">
+      {/* <AnimatedCard delay={0.1} hover={false} className="gradient-primary text-white">
         <div className="flex items-center gap-3">
           <Lightbulb size={24} />
           <div>
-            <h3 className="text-lg font-bold">AI Recommendations</h3>
-            <p className="text-sm text-white/80">Based on predicted waste: {prediction.totalWaste} tons ({prediction.confidence}% confidence)</p>
+            <h3 className="text-lg font-bold">Municipal Council Recommendations</h3>
+            <p className="text-sm text-white/80">Based on predicted council waste: {prediction.grandTotal} tons ({prediction.confidence}% confidence)</p>
           </div>
         </div>
-      </AnimatedCard>
+      </AnimatedCard> */}
 
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
         {recommendations.map((rec, i) => {

@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   BrainCircuit, SlidersHorizontal, BarChart3, PieChart,
-  LineChart as LineChartIcon, Lightbulb, History, Sparkles,
+  LineChart as LineChartIcon, Lightbulb, History, DollarSign,
 } from 'lucide-react';
 import PredictionInputPanel from './PredictionInputPanel';
 import PredictionResults from './PredictionResults';
@@ -10,17 +10,17 @@ import WasteComposition from './WasteComposition';
 import Analytics from './Analytics';
 import Recommendations from './Recommendations';
 import PredictionHistory from './PredictionHistory';
-import SmartInsights from './SmartInsights';
-import { predictWaste, estimateComposition, generateRecommendations } from '../../utils/predictionEngine';
+import RevenueEstimation from './RevenueEstimation';
+import { predictMunicipalWaste, estimateMunicipalComposition, generateRecommendations } from '../../utils/predictionEngine';
 
 const tabs = [
   { id: 'predict', label: 'Predict', icon: SlidersHorizontal },
   { id: 'results', label: 'Results', icon: BarChart3 },
   { id: 'composition', label: 'Composition', icon: PieChart },
-  { id: 'analytics', label: 'Analytics', icon: LineChartIcon },
+  // { id: 'analytics', label: 'Analytics', icon: LineChartIcon },
   { id: 'recommendations', label: 'Recommendations', icon: Lightbulb },
   { id: 'history', label: 'History', icon: History },
-  { id: 'insights', label: 'Smart Insights', icon: Sparkles },
+  { id: 'revenue', label: 'Revenue', icon: DollarSign },
 ];
 
 export default function WastePrediction() {
@@ -28,17 +28,15 @@ export default function WastePrediction() {
   const [prediction, setPrediction] = useState(null);
   const [composition, setComposition] = useState(null);
   const [recommendations, setRecommendations] = useState([]);
-  const [formInputs, setFormInputs] = useState(null);
 
   const handlePredict = (inputs) => {
-    const result = predictWaste(inputs);
+    const result = predictMunicipalWaste(inputs);
     setPrediction(result);
-    setFormInputs(inputs);
 
-    const comp = estimateComposition(inputs.zoneType, result.wetWaste, result.dryWaste);
+    const comp = estimateMunicipalComposition(result.zoneResults);
     setComposition(comp);
 
-    const recs = generateRecommendations(result, inputs.zoneType);
+    const recs = generateRecommendations(result);
     setRecommendations(recs);
 
     // Auto-switch to results tab
@@ -50,17 +48,17 @@ export default function WastePrediction() {
       case 'predict':
         return <PredictionInputPanel onPredict={handlePredict} />;
       case 'results':
-        return <PredictionResults prediction={prediction} formInputs={formInputs} />;
+        return <PredictionResults prediction={prediction} />;
       case 'composition':
-        return <WasteComposition composition={composition} zoneType={formInputs?.zoneType} />;
+        return <WasteComposition composition={composition} prediction={prediction} />;
       case 'analytics':
         return <Analytics />;
       case 'recommendations':
         return <Recommendations recommendations={recommendations} prediction={prediction} />;
       case 'history':
         return <PredictionHistory />;
-      case 'insights':
-        return <SmartInsights />;
+      case 'revenue':
+        return <RevenueEstimation composition={composition} prediction={prediction} />;
       default:
         return null;
     }
@@ -76,6 +74,7 @@ export default function WastePrediction() {
           </div>
           <div>
             <h1 className="text-2xl font-bold" style={{ color: 'var(--text-primary)' }}>
+              Municipal Waste Prediction & Composition Estimation
               Waste Prediction & Composition Estimation
             </h1>
           </div>
@@ -87,16 +86,19 @@ export default function WastePrediction() {
         initial={{ opacity: 0, y: 10 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.1 }}
-        className="overflow-x-auto"
+        className="w-full"
       >
         <div
-          className="inline-flex gap-1 rounded-2xl border p-1.5"
+          className="flex w-full gap-1 rounded-2xl border p-1.5"
           style={{ backgroundColor: 'var(--bg-secondary)', borderColor: 'var(--border-color)' }}
         >
           {tabs.map((tab) => (
             <button
               key={tab.id}
               onClick={() => setActiveTab(tab.id)}
+              className={`flex flex-1 items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-medium transition-all duration-200 ${activeTab === tab.id
+                ? 'bg-green-700 text-white'
+                : 'hover:bg-surface-100 dark:hover:bg-surface-700/50'
               className={`flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-medium transition-all duration-200 ${activeTab === tab.id
                   ? 'bg-primary-500 text-white shadow-lg shadow-primary-500/25'
                   : 'hover:bg-surface-100 dark:hover:bg-surface-700/50'

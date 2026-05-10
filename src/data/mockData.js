@@ -4,38 +4,38 @@
 
 // Dashboard summary cards
 export const dashboardSummary = {
-  totalWastePredicted: 2847,
-  wetWaste: 1623,
-  dryWaste: 1224,
-  activeZones: 24,
-  overflowAlerts: 7,
+  totalWastePredicted: 274,
+  wetWaste: 158,
+  dryWaste: 116,
+  activeZones: 12,
+  overflowAlerts: 3,
 };
 
 // Monthly waste trend (12 months)
 export const monthlyWasteTrend = [
-  { month: 'Jan', wet: 1200, dry: 890, total: 2090 },
-  { month: 'Feb', wet: 1150, dry: 870, total: 2020 },
-  { month: 'Mar', wet: 1300, dry: 920, total: 2220 },
-  { month: 'Apr', wet: 1450, dry: 980, total: 2430 },
-  { month: 'May', wet: 1520, dry: 1050, total: 2570 },
-  { month: 'Jun', wet: 1680, dry: 1120, total: 2800 },
-  { month: 'Jul', wet: 1750, dry: 1180, total: 2930 },
-  { month: 'Aug', wet: 1620, dry: 1100, total: 2720 },
-  { month: 'Sep', wet: 1480, dry: 1020, total: 2500 },
-  { month: 'Oct', wet: 1560, dry: 1080, total: 2640 },
-  { month: 'Nov', wet: 1600, dry: 1150, total: 2750 },
-  { month: 'Dec', wet: 1700, dry: 1250, total: 2950 },
+  { month: 'Jan', wet: 142, dry: 105, total: 247 },
+  { month: 'Feb', wet: 136, dry: 100, total: 236 },
+  { month: 'Mar', wet: 150, dry: 108, total: 258 },
+  { month: 'Apr', wet: 162, dry: 114, total: 276 },
+  { month: 'May', wet: 168, dry: 120, total: 288 },
+  { month: 'Jun', wet: 178, dry: 126, total: 304 },
+  { month: 'Jul', wet: 185, dry: 130, total: 315 },
+  { month: 'Aug', wet: 175, dry: 125, total: 300 },
+  { month: 'Sep', wet: 165, dry: 118, total: 283 },
+  { month: 'Oct', wet: 170, dry: 122, total: 292 },
+  { month: 'Nov', wet: 174, dry: 128, total: 302 },
+  { month: 'Dec', wet: 182, dry: 135, total: 317 },
 ];
 
 // Weekly waste trend
 export const weeklyWasteTrend = [
-  { day: 'Mon', wet: 245, dry: 180 },
-  { day: 'Tue', wet: 230, dry: 175 },
-  { day: 'Wed', wet: 260, dry: 190 },
-  { day: 'Thu', wet: 240, dry: 185 },
-  { day: 'Fri', wet: 280, dry: 210 },
-  { day: 'Sat', wet: 310, dry: 240 },
-  { day: 'Sun', wet: 295, dry: 220 },
+  { day: 'Mon', wet: 5.2, dry: 3.6 },
+  { day: 'Tue', wet: 4.8, dry: 3.4 },
+  { day: 'Wed', wet: 5.5, dry: 3.8 },
+  { day: 'Thu', wet: 5.0, dry: 3.5 },
+  { day: 'Fri', wet: 5.8, dry: 4.0 },
+  { day: 'Sat', wet: 6.2, dry: 4.5 },
+  { day: 'Sun', wet: 5.9, dry: 4.2 },
 ];
 
 // Recent activities
@@ -93,43 +93,43 @@ export const overflowAlerts = [
   { id: 3, bin: 'BIN-008', location: 'Zone D - Hotel Lane', time: '1 hr ago', severity: 'high' },
 ];
 
-// Prediction history (Component 3)
+// Prediction history (Component 3) — Municipal Council level
 export const predictionHistory = [
-  { id: 1, date: '2026-05-04', zone: 'residential', wetWaste: 12.4, dryWaste: 8.6, confidence: 94, status: 'verified' },
-  { id: 2, date: '2026-05-03', zone: 'market', wetWaste: 18.7, dryWaste: 11.2, confidence: 91, status: 'verified' },
-  { id: 3, date: '2026-05-03', zone: 'school', wetWaste: 5.2, dryWaste: 4.8, confidence: 88, status: 'pending' },
-  { id: 4, date: '2026-05-02', zone: 'office', wetWaste: 3.8, dryWaste: 6.1, confidence: 92, status: 'verified' },
-  { id: 5, date: '2026-05-02', zone: 'tourist_area', wetWaste: 15.3, dryWaste: 13.7, confidence: 87, status: 'verified' },
-  { id: 6, date: '2026-05-01', zone: 'residential', wetWaste: 11.8, dryWaste: 8.2, confidence: 93, status: 'verified' },
-  { id: 7, date: '2026-05-01', zone: 'market', wetWaste: 19.1, dryWaste: 12.0, confidence: 90, status: 'verified' },
-  { id: 8, date: '2026-04-30', zone: 'school', wetWaste: 4.9, dryWaste: 4.5, confidence: 89, status: 'verified' },
-  { id: 9, date: '2026-04-30', zone: 'tourist_area', wetWaste: 16.1, dryWaste: 14.2, confidence: 86, status: 'pending' },
-  { id: 10, date: '2026-04-29', zone: 'office', wetWaste: 4.0, dryWaste: 6.4, confidence: 91, status: 'verified' },
+  { id: 1, date: '2026-05-04', scope: 'Municipal Council', zoneTypes: 5, totalZones: 12, wetWaste: 5.6, dryWaste: 3.8, confidence: 92, status: 'verified' },
+  { id: 2, date: '2026-05-03', scope: 'Municipal Council', zoneTypes: 5, totalZones: 12, wetWaste: 5.3, dryWaste: 3.5, confidence: 91, status: 'verified' },
+  { id: 3, date: '2026-05-02', scope: 'Municipal Council', zoneTypes: 5, totalZones: 12, wetWaste: 5.8, dryWaste: 4.0, confidence: 90, status: 'verified' },
+  { id: 4, date: '2026-05-01', scope: 'Municipal Council', zoneTypes: 5, totalZones: 12, wetWaste: 5.1, dryWaste: 3.4, confidence: 93, status: 'verified' },
+  { id: 5, date: '2026-04-30', scope: 'Municipal Council', zoneTypes: 5, totalZones: 12, wetWaste: 6.0, dryWaste: 4.2, confidence: 88, status: 'pending' },
+  { id: 6, date: '2026-04-29', scope: 'Municipal Council', zoneTypes: 5, totalZones: 12, wetWaste: 5.4, dryWaste: 3.7, confidence: 91, status: 'verified' },
+  { id: 7, date: '2026-04-28', scope: 'Municipal Council', zoneTypes: 5, totalZones: 12, wetWaste: 5.7, dryWaste: 3.9, confidence: 90, status: 'verified' },
+  { id: 8, date: '2026-04-27', scope: 'Municipal Council', zoneTypes: 4, totalZones: 10, wetWaste: 4.8, dryWaste: 3.2, confidence: 89, status: 'verified' },
+  { id: 9, date: '2026-04-26', scope: 'Municipal Council', zoneTypes: 5, totalZones: 12, wetWaste: 5.5, dryWaste: 3.8, confidence: 87, status: 'pending' },
+  { id: 10, date: '2026-04-25', scope: 'Municipal Council', zoneTypes: 5, totalZones: 12, wetWaste: 5.2, dryWaste: 3.6, confidence: 92, status: 'verified' },
 ];
 
 // Zone-based analytics
 export const zoneAnalytics = [
-  { zone: 'Residential', wet: 12.4, dry: 8.6, total: 21.0 },
-  { zone: 'Market', wet: 18.7, dry: 11.2, total: 29.9 },
-  { zone: 'School', wet: 5.2, dry: 4.8, total: 10.0 },
-  { zone: 'Office', wet: 3.8, dry: 6.1, total: 9.9 },
-  { zone: 'Tourist', wet: 15.3, dry: 13.7, total: 29.0 },
+  { zone: 'Residential', wet: 2.35, dry: 1.65, total: 4.00 },
+  { zone: 'Market', wet: 1.57, dry: 0.83, total: 2.40 },
+  { zone: 'School', wet: 0.52, dry: 0.43, total: 0.95 },
+  { zone: 'Office', wet: 0.39, dry: 0.57, total: 0.96 },
+  { zone: 'Tourist', wet: 0.75, dry: 0.63, total: 1.38 },
 ];
 
 // Seasonal variation
 export const seasonalData = [
-  { month: 'Jan', residential: 11.2, market: 17.5, school: 4.8, office: 3.5, tourist: 8.2 },
-  { month: 'Feb', residential: 10.8, market: 16.8, school: 4.5, office: 3.4, tourist: 7.5 },
-  { month: 'Mar', residential: 11.5, market: 18.2, school: 5.0, office: 3.6, tourist: 9.8 },
-  { month: 'Apr', residential: 12.0, market: 19.5, school: 5.2, office: 3.8, tourist: 12.5 },
-  { month: 'May', residential: 12.8, market: 20.1, school: 5.5, office: 4.0, tourist: 15.2 },
-  { month: 'Jun', residential: 13.5, market: 21.0, school: 3.2, office: 3.9, tourist: 18.5 },
-  { month: 'Jul', residential: 14.0, market: 22.5, school: 2.8, office: 3.7, tourist: 20.1 },
-  { month: 'Aug', residential: 13.8, market: 21.8, school: 3.0, office: 3.8, tourist: 19.5 },
-  { month: 'Sep', residential: 12.5, market: 19.0, school: 5.0, office: 3.9, tourist: 14.8 },
-  { month: 'Oct', residential: 12.0, market: 18.5, school: 5.2, office: 4.0, tourist: 12.0 },
-  { month: 'Nov', residential: 12.3, market: 19.2, school: 5.3, office: 4.1, tourist: 10.5 },
-  { month: 'Dec', residential: 13.0, market: 22.0, school: 4.0, office: 3.5, tourist: 16.8 },
+  { month: 'Jan', residential: 3.6, market: 2.1, school: 0.85, office: 0.88, tourist: 0.95 },
+  { month: 'Feb', residential: 3.5, market: 2.0, school: 0.80, office: 0.85, tourist: 0.88 },
+  { month: 'Mar', residential: 3.7, market: 2.2, school: 0.88, office: 0.90, tourist: 1.05 },
+  { month: 'Apr', residential: 3.9, market: 2.3, school: 0.92, office: 0.95, tourist: 1.20 },
+  { month: 'May', residential: 4.0, market: 2.4, school: 0.95, office: 0.98, tourist: 1.35 },
+  { month: 'Jun', residential: 4.2, market: 2.5, school: 0.55, office: 0.96, tourist: 1.55 },
+  { month: 'Jul', residential: 4.3, market: 2.6, school: 0.48, office: 0.92, tourist: 1.65 },
+  { month: 'Aug', residential: 4.2, market: 2.5, school: 0.52, office: 0.94, tourist: 1.60 },
+  { month: 'Sep', residential: 3.9, market: 2.3, school: 0.88, office: 0.96, tourist: 1.30 },
+  { month: 'Oct', residential: 3.8, market: 2.2, school: 0.90, office: 0.98, tourist: 1.15 },
+  { month: 'Nov', residential: 3.8, market: 2.3, school: 0.92, office: 1.00, tourist: 1.05 },
+  { month: 'Dec', residential: 4.0, market: 2.6, school: 0.70, office: 0.88, tourist: 1.45 },
 ];
 
 // Route optimization data (Component 4)
@@ -148,54 +148,3 @@ export const routeStats = {
   distanceOptimized: 156,
 };
 
-// Smart insights
-export const smartInsights = [
-  {
-    id: 1,
-    title: 'Waste Generation Trend Increasing',
-    description: 'Overall waste generation has increased by 12% compared to last month. Market zones are the primary contributor.',
-    type: 'trend',
-    severity: 'warning',
-    metric: '+12%',
-  },
-  {
-    id: 2,
-    title: 'Market Zones Produce Highest Wet Waste',
-    description: 'Market areas consistently generate 35% more wet waste than other zones due to food waste and organic materials.',
-    type: 'zone',
-    severity: 'info',
-    metric: '35%',
-  },
-  {
-    id: 3,
-    title: 'Tourist Areas Generate More Dry Waste',
-    description: 'Tourist zones show a 28% higher dry waste ratio compared to residential areas, primarily from packaging materials.',
-    type: 'composition',
-    severity: 'info',
-    metric: '28%',
-  },
-  {
-    id: 4,
-    title: 'Holiday Season Impact Detected',
-    description: 'Upcoming holiday period is expected to increase waste generation by 25-30% across all zones.',
-    type: 'prediction',
-    severity: 'critical',
-    metric: '+30%',
-  },
-  {
-    id: 5,
-    title: 'Composting Efficiency Below Target',
-    description: 'Current organic waste composting rate is at 62%, below the 75% target. Recommend increasing processing capacity.',
-    type: 'efficiency',
-    severity: 'warning',
-    metric: '62%',
-  },
-  {
-    id: 6,
-    title: 'Recycling Rate Improving',
-    description: 'Dry waste recycling rate has improved by 8% this quarter due to better sorting at source.',
-    type: 'positive',
-    severity: 'success',
-    metric: '+8%',
-  },
-];

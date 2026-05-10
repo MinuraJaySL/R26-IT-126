@@ -1,5 +1,5 @@
 import { motion } from 'framer-motion';
-import { History, CheckCircle, Clock, MapPin } from 'lucide-react';
+import { History, CheckCircle, Clock, Building2 } from 'lucide-react';
 import AnimatedCard from '../../components/ui/AnimatedCard';
 import Badge from '../../components/ui/Badge';
 import { predictionHistory } from '../../data/mockData';
@@ -7,22 +7,22 @@ import { predictionHistory } from '../../data/mockData';
 export default function PredictionHistory() {
   return (
     <div className="space-y-6">
-      <AnimatedCard delay={0.1} hover={false} className="gradient-ocean text-white">
+      {/* <AnimatedCard delay={0.1} hover={false} className="gradient-ocean text-white"> */}
         <div className="flex items-center gap-3">
           <History size={24} />
           <div>
-            <h3 className="text-lg font-bold">Prediction History</h3>
-            <p className="text-sm text-white/80">{predictionHistory.length} predictions recorded</p>
+            <h3 className="text-lg font-bold">Municipal Prediction History</h3>
+            <p className="text-sm text-white/80">{predictionHistory.length} council-wide predictions recorded</p>
           </div>
         </div>
-      </AnimatedCard>
+      {/* </AnimatedCard> */}
 
       {/* Table */}
       <AnimatedCard delay={0.2} hover={false} className="overflow-x-auto">
         <table className="w-full text-sm">
           <thead>
             <tr style={{ borderBottom: '2px solid var(--border-color)' }}>
-              {['Date', 'Zone', 'Wet Waste', 'Dry Waste', 'Confidence', 'Status'].map((h) => (
+              {['Date', 'Scope', 'Zone Types', 'Total Zones', 'Wet Waste', 'Dry Waste', 'Total', 'Confidence', 'Status'].map((h) => (
                 <th key={h} className="px-4 py-3 text-left font-semibold" style={{ color: 'var(--text-secondary)' }}>{h}</th>
               ))}
             </tr>
@@ -32,11 +32,14 @@ export default function PredictionHistory() {
               <motion.tr key={row.id} initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 0.3 + i * 0.05 }}
                 className="transition-colors hover:bg-surface-50 dark:hover:bg-surface-800/50" style={{ borderBottom: '1px solid var(--border-color)' }}>
                 <td className="px-4 py-3 font-medium" style={{ color: 'var(--text-primary)' }}>{row.date}</td>
-                <td className="px-4 py-3 capitalize" style={{ color: 'var(--text-secondary)' }}>
-                  <div className="flex items-center gap-1.5"><MapPin size={14} className="text-primary-500" />{row.zone.replace('_', ' ')}</div>
+                <td className="px-4 py-3" style={{ color: 'var(--text-secondary)' }}>
+                  <div className="flex items-center gap-1.5"><Building2 size={14} className="text-primary-500" />{row.scope}</div>
                 </td>
+                <td className="px-4 py-3" style={{ color: 'var(--text-secondary)' }}>{row.zoneTypes}</td>
+                <td className="px-4 py-3" style={{ color: 'var(--text-secondary)' }}>{row.totalZones}</td>
                 <td className="px-4 py-3 font-semibold text-cyan-500">{row.wetWaste} t</td>
                 <td className="px-4 py-3 font-semibold text-violet-500">{row.dryWaste} t</td>
+                <td className="px-4 py-3 font-bold text-emerald-500">{(row.wetWaste + row.dryWaste).toFixed(1)} t</td>
                 <td className="px-4 py-3">
                   <div className="flex items-center gap-1">
                     <div className="h-2 w-16 overflow-hidden rounded-full" style={{ backgroundColor: 'var(--border-color)' }}>

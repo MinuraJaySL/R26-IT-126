@@ -1,15 +1,16 @@
 // =========================================
-// Mock Prediction Engine
-// Rule-based waste prediction & composition estimation
+// Municipal Council Waste Prediction Engine
+// Aggregates predictions across all zone types
+// to forecast total council-wide waste generation
 // =========================================
 
-// Zone base waste generation rates (tons/day)
+// Zone base waste generation rates (tons/day per zone)
 const zoneBaseRates = {
-  residential: { wet: 12.0, dry: 8.0 },
-  market: { wet: 18.0, dry: 10.5 },
-  school: { wet: 5.0, dry: 4.5 },
-  office: { wet: 3.5, dry: 6.0 },
-  tourist_area: { wet: 14.0, dry: 12.0 },
+  residential: { wet: 0.70, dry: 0.50 },
+  market: { wet: 0.75, dry: 0.40 },
+  school: { wet: 0.16, dry: 0.14 },
+  office: { wet: 0.18, dry: 0.27 },
+  tourist_area: { wet: 0.38, dry: 0.32 },
 };
 
 // Week type multipliers
@@ -41,8 +42,17 @@ const compositionByZone = {
   tourist_area: { organic: 40, plastic: 30, paper: 18, metal: 12 },
 };
 
+// Zone type labels for display
+export const zoneTypeLabels = {
+  residential: 'Residential',
+  market: 'Market',
+  school: 'School',
+  office: 'Office',
+  tourist_area: 'Tourist Area',
+};
+
 /**
- * Predict waste generation based on input parameters
+ * Predict waste generation for a single zone type (internal helper)
  */
 export function predictWaste(inputs) {
   const {
@@ -110,7 +120,137 @@ export function predictWaste(inputs) {
 }
 
 /**
- * Estimate waste composition based on zone type and wet/dry ratio
+ * Predict total municipal council waste by aggregating across all zone types
+ * Each zone type contains an array of individual zones with their own parameters
+ * @param {Object} inputs - Contains globalParams and zoneConfigs (arrays per zone type)
+ * @returns {Object} - Municipal-level prediction with per-zone breakdown
+ */
+export function predictMunicipalWaste(inputs) {
+  const { globalParams, zoneConfigs } = inputs;
+
+  const zoneResults = {};
+  let totalWet = 0;
+  let totalDry = 0;
+  let totalConfidence = 0;
+  let zoneTypeCount = 0;
+
+  // Run prediction for each zone type
+  Object.entries(zoneConfigs).forEach(([zoneType, zones]) => {
+    // zones is an array of individual zone objects
+    if (!Array.isArray(zones) || zones.length === 0) return;
+
+    let typeWet = 0;
+    let typeWry = 0;
+    let typeConfidence = 0;
+    const individualResults = [];
+
+    // Predict for each individual zone
+    zones.forEach((zone) => {
+      const zonePrediction = predictWaste({
+        zoneType,
+        rainfall: globalParams.rainfall,
+        weekType: globalParams.weekType,
+        month: globalParams.month,
+        specialEvent: globalParams.specialEvent,
+        populationDensity: zone.populationDensity,
+        previousWet: zone.previousWet,
+        previousDry: zone.previousDry,
+      });
+
+      typeWet += zonePrediction.wetWaste;
+      typeWry += zonePrediction.dryWaste;
+      typeConfidence += zonePrediction.confidence;
+
+      individualResults.push({
+        name: zone.name,
+        ...zonePrediction,
+      });
+    });
+
+    const avgTypeConfidence = typeConfidence / zones.length;
+
+    zoneResults[zoneType] = {
+      count: zones.length,
+      scaledWet: Math.round(typeWet * 100) / 100,
+      scaledDry: Math.round(typeWry * 100) / 100,
+      scaledTotal: Math.round((typeWet + typeWry) * 100) / 100,
+      confidence: Math.round(avgTypeConfidence * 10) / 10,
+      zones: individualResults,
+    };
+
+    totalWet += typeWet;
+    totalDry += typeWry;
+    totalConfidence += avgTypeConfidence;
+    zoneTypeCount++;
+  });
+
+  const avgConfidence = zoneTypeCount > 0 ? totalConfidence / zoneTypeCount : 0;
+  const grandTotal = totalWet + totalDry;
+
+  // Calculate zone contribution percentages
+  Object.keys(zoneResults).forEach((zoneType) => {
+    const z = zoneResults[zoneType];
+    z.contributionPercent = grandTotal > 0 ? Math.round((z.scaledTotal / grandTotal) * 1000) / 10 : 0;
+  });
+
+  return {
+    totalWet: Math.round(totalWet * 100) / 100,
+    totalDry: Math.round(totalDry * 100) / 100,
+    grandTotal: Math.round(grandTotal * 100) / 100,
+    confidence: Math.round(avgConfidence * 10) / 10,
+    zoneResults,
+    zoneCount: zoneTypeCount,
+  };
+}
+
+/**
+ * Estimate aggregated municipal composition from per-zone results
+ */
+export function estimateMunicipalComposition(zoneResults) {
+  let totalOrganic = 0, totalPlastic = 0, totalPaper = 0, totalMetal = 0;
+  let grandTotal = 0;
+
+  Object.entries(zoneResults).forEach(([zoneType, result]) => {
+    const zoneTotal = result.scaledWet + result.scaledDry;
+    const comp = compositionByZone[zoneType] || compositionByZone.residential;
+
+    totalOrganic += zoneTotal * (comp.organic / 100);
+    totalPlastic += zoneTotal * (comp.plastic / 100);
+    totalPaper += zoneTotal * (comp.paper / 100);
+    totalMetal += zoneTotal * (comp.metal / 100);
+    grandTotal += zoneTotal;
+  });
+
+  if (grandTotal === 0) return null;
+
+  // Normalize to percentages
+  const organicPct = Math.round((totalOrganic / grandTotal) * 1000) / 10;
+  const plasticPct = Math.round((totalPlastic / grandTotal) * 1000) / 10;
+  const paperPct = Math.round((totalPaper / grandTotal) * 1000) / 10;
+  const metalPct = Math.round((100 - organicPct - plasticPct - paperPct) * 10) / 10;
+
+  return {
+    organic: { percentage: organicPct, weight: Math.round(totalOrganic * 100) / 100 },
+    plastic: { percentage: plasticPct, weight: Math.round(totalPlastic * 100) / 100 },
+    paper: { percentage: paperPct, weight: Math.round(totalPaper * 100) / 100 },
+    metal: { percentage: metalPct, weight: Math.round(totalMetal * 100) / 100 },
+    perZone: Object.fromEntries(
+      Object.entries(zoneResults).map(([zoneType, result]) => {
+        const zoneTotal = result.scaledWet + result.scaledDry;
+        const comp = compositionByZone[zoneType] || compositionByZone.residential;
+        return [zoneType, {
+          organic: Math.round(zoneTotal * comp.organic / 100 * 100) / 100,
+          plastic: Math.round(zoneTotal * comp.plastic / 100 * 100) / 100,
+          paper: Math.round(zoneTotal * comp.paper / 100 * 100) / 100,
+          metal: Math.round(zoneTotal * comp.metal / 100 * 100) / 100,
+        }];
+      })
+    ),
+  };
+}
+
+/**
+ * Estimate waste composition based on zone type and wet/dry ratio (kept for compatibility)
  */
 export function estimateComposition(zoneType, wetWaste, dryWaste) {
   const baseComposition = compositionByZone[zoneType] || compositionByZone.residential;
@@ -144,101 +284,116 @@ export function estimateComposition(zoneType, wetWaste, dryWaste) {
 }
 
 /**
- * Generate AI recommendations based on prediction results
+ * Generate AI recommendations based on municipal council prediction results
  */
-export function generateRecommendations(prediction, zoneType) {
+export function generateRecommendations(prediction) {
   const recommendations = [];
-  const { wetWaste, dryWaste, totalWaste, wetTrend, dryTrend } = prediction;
+  const { totalWet, totalDry, grandTotal, zoneResults } = prediction;
 
-  // High total waste
-  if (totalWaste > 25) {
+  // High total waste — council level
+  if (grandTotal > 10) {
     recommendations.push({
       id: 'high-waste',
-      title: 'High Waste Generation Warning',
-      description: `Predicted total waste of ${totalWaste} tons exceeds normal threshold. Consider deploying additional collection vehicles.`,
+      title: 'High Municipal Waste Generation Alert',
+      description: `Predicted total council waste of ${grandTotal} tons exceeds normal threshold. Deploy additional collection vehicles across all zones.`,
       severity: 'critical',
       icon: 'alert-triangle',
-      action: 'Deploy extra vehicles',
+      action: 'Deploy extra fleet',
     });
   }
 
-  // High wet waste
-  if (wetWaste > 15) {
+  // High wet waste — council level
+  if (totalWet > 5.5) {
     recommendations.push({
       id: 'compost',
-      title: 'Increase Compost Processing',
-      description: `High wet waste prediction (${wetWaste} tons). Increase composting facility capacity to handle the organic load.`,
+      title: 'Scale Up Composting Facilities',
+      description: `Council-wide wet waste predicted at ${totalWet} tons. Increase composting facility capacity to handle the organic load.`,
       severity: 'warning',
       icon: 'leaf',
-      action: 'Scale composting',
+      action: 'Expand composting',
     });
   }
 
-  // High dry waste
-  if (dryWaste > 10) {
+  // High dry waste — council level
+  if (totalDry > 4) {
     recommendations.push({
       id: 'sorting',
-      title: 'Allocate More Sorting Workers',
-      description: `Dry waste predicted at ${dryWaste} tons. Additional sorting workers needed at the recycling facility.`,
+      title: 'Increase Recycling Capacity',
+      description: `Dry waste predicted at ${totalDry} tons across the council. Allocate more sorting workers and expand recycling centers.`,
       severity: 'warning',
       icon: 'users',
-      action: 'Add sorting staff',
+      action: 'Scale recycling',
     });
   }
 
-  // Increasing trend
-  if (wetTrend > 10 || dryTrend > 10) {
-    recommendations.push({
-      id: 'trend-up',
-      title: 'Upward Waste Trend Detected',
-      description: `Waste generation is trending upward (${Math.max(wetTrend, dryTrend).toFixed(1)}%). Monitor closely and prepare for increased collection frequency.`,
-      severity: 'info',
-      icon: 'trending-up',
-      action: 'Increase monitoring',
+  // Find highest contributing zone
+  if (zoneResults) {
+    let maxZone = null;
+    let maxTotal = 0;
+    Object.entries(zoneResults).forEach(([zoneType, result]) => {
+      if (result.scaledTotal > maxTotal) {
+        maxTotal = result.scaledTotal;
+        maxZone = zoneType;
+      }
     });
+
+    if (maxZone) {
+      const label = zoneTypeLabels[maxZone] || maxZone;
+      const pct = zoneResults[maxZone].contributionPercent;
+      recommendations.push({
+        id: 'top-zone',
+        title: `${label} Zones — Highest Contributor`,
+        description: `${label} zones contribute ${pct}% (${maxTotal} tons) of total municipal waste. Prioritize collection and processing resources for these areas.`,
+        severity: 'info',
+        icon: 'trending-up',
+        action: 'Prioritize resources',
+      });
+    }
   }
 
   // Transport recommendation
-  if (totalWaste > 20) {
+  if (grandTotal > 7) {
+    const vehiclesNeeded = Math.ceil(grandTotal / 3);
     recommendations.push({
       id: 'transport',
-      title: 'Prepare Extra Transport Vehicles',
-      description: `High predicted waste volume requires additional transport capacity. Schedule ${Math.ceil(totalWaste / 8)} vehicles for this zone.`,
+      title: 'Fleet Deployment Plan',
+      description: `High predicted waste volume requires approximately ${vehiclesNeeded} collection vehicles across the council. Schedule routes accordingly.`,
       severity: 'warning',
       icon: 'truck',
-      action: 'Schedule vehicles',
+      action: 'Schedule fleet',
     });
   }
 
-  // Zone-specific recommendations
-  if (zoneType === 'market') {
+  // Market zone specific
+  if (zoneResults?.market && zoneResults.market.scaledTotal > 2) {
     recommendations.push({
       id: 'market-organic',
       title: 'Market Zone Organic Management',
-      description: 'Market zones generate high organic waste. Ensure bio-waste bins are available at all vendor locations.',
+      description: `Market zones generating ${zoneResults.market.scaledTotal} tons. Ensure bio-waste bins are available at all vendor locations across all market areas.`,
       severity: 'info',
       icon: 'store',
-      action: 'Check bio-bins',
+      action: 'Deploy bio-bins',
     });
   }
 
-  if (zoneType === 'tourist_area') {
+  // Tourist zone specific
+  if (zoneResults?.tourist_area && zoneResults.tourist_area.scaledTotal > 1.2) {
     recommendations.push({
       id: 'tourist-recycling',
       title: 'Tourist Area Recycling Initiative',
-      description: 'Tourist zones produce significant packaging waste. Deploy clearly labeled recycling stations.',
+      description: `Tourist zones producing ${zoneResults.tourist_area.scaledTotal} tons of waste. Deploy clearly labeled recycling stations in high-traffic tourist areas.`,
       severity: 'info',
       icon: 'recycle',
       action: 'Deploy recycling bins',
     });
   }
 
-  // Always add a positive recommendation
-  if (totalWaste < 15) {
+  // Positive — low waste
+  if (grandTotal < 7) {
     recommendations.push({
       id: 'low-waste',
-      title: 'Optimal Waste Levels',
-      description: 'Predicted waste levels are within optimal range. Standard collection schedule is sufficient.',
+      title: 'Optimal Council Waste Levels',
+      description: 'Predicted municipal waste levels are within optimal range. Standard collection schedule is sufficient across all zones.',
       severity: 'success',
       icon: 'check-circle',
       action: 'No action needed',
@@ -249,10 +404,10 @@ export function generateRecommendations(prediction, zoneType) {
 }
 
 /**
- * Generate weekly comparison data for charts
+ * Generate weekly comparison data for charts (council-wide)
  */
 export function generateWeeklyComparison(prediction) {
-  const { wetWaste, dryWaste } = prediction;
+  const { totalWet, totalDry } = prediction;
   const days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 
   // Daily distribution factors (weekends higher)
@@ -260,9 +415,9 @@ export function generateWeeklyComparison(prediction) {
 
   return days.map((day, i) => ({
     day,
-    wet: Math.round(wetWaste * factors[i] * 100) / 100,
-    dry: Math.round(dryWaste * factors[i] * 100) / 100,
-    previousWet: Math.round(wetWaste * factors[i] * 0.92 * 100) / 100,
-    previousDry: Math.round(dryWaste * factors[i] * 0.95 * 100) / 100,
+    wet: Math.round(totalWet * factors[i] * 100) / 100,
+    dry: Math.round(totalDry * factors[i] * 100) / 100,
+    previousWet: Math.round(totalWet * factors[i] * 0.92 * 100) / 100,
+    previousDry: Math.round(totalDry * factors[i] * 0.95 * 100) / 100,
   }));
 }

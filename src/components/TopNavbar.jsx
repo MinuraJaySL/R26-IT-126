@@ -24,7 +24,7 @@ export default function TopNavbar() {
       {/* Right - Actions */}
       <div className="flex items-center gap-3">
         {/* Search */}
-        <div
+        {/* <div
           className="hidden items-center gap-2 rounded-xl border px-3 py-2 md:flex"
           style={{ borderColor: 'var(--border-color)', backgroundColor: 'var(--bg-tertiary)' }}
         >
@@ -35,7 +35,7 @@ export default function TopNavbar() {
             className="w-40 bg-transparent text-sm outline-none"
             style={{ color: 'var(--text-primary)' }}
           />
-        </div>
+        </div> */}
 
         {/* Notifications */}
         <button
@@ -57,8 +57,8 @@ export default function TopNavbar() {
 
         {/* Profile */}
         <div className="flex items-center gap-2">
-          <div className="flex h-9 w-9 items-center justify-center rounded-full gradient-primary text-sm font-bold text-white">
-            R
+          <div className="flex h-9 w-9 items-center justify-center rounded-full bg-green-900 text-sm font-bold text-black">
+            M
           </div>
         </div>
       </div>
