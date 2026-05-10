@@ -75,6 +75,7 @@ export default function WastePrediction() {
           <div>
             <h1 className="text-2xl font-bold" style={{ color: 'var(--text-primary)' }}>
               Municipal Waste Prediction & Composition Estimation
+              Waste Prediction & Composition Estimation
             </h1>
           </div>
         </div>
@@ -98,6 +99,9 @@ export default function WastePrediction() {
               className={`flex flex-1 items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-medium transition-all duration-200 ${activeTab === tab.id
                 ? 'bg-green-700 text-white'
                 : 'hover:bg-surface-100 dark:hover:bg-surface-700/50'
+              className={`flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-medium transition-all duration-200 ${activeTab === tab.id
+                  ? 'bg-primary-500 text-white shadow-lg shadow-primary-500/25'
+                  : 'hover:bg-surface-100 dark:hover:bg-surface-700/50'
                 }`}
               style={{
                 color: activeTab === tab.id ? '#ffffff' : 'var(--text-secondary)',

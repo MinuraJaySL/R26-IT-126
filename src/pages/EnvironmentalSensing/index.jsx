@@ -11,6 +11,7 @@ import AnimatedCard from '../../components/ui/AnimatedCard';
 import Badge from '../../components/ui/Badge';
 import { sensorData, sensorHistory } from '../../data/mockData';
 import { useTheme } from '../../context/ThemeContext';
+import FirebaseSensorData from './FirebaseSensorData';
 
 const iconMap = {
   gauge: Gauge,
@@ -55,6 +56,11 @@ export default function EnvironmentalSensing() {
             <span className="text-sm font-semibold text-emerald-500">Online</span>
           </div>
         </div>
+      </AnimatedCard>
+
+      {/* Live Firebase Sensor Data */}
+      <AnimatedCard delay={0.15} hover={false}>
+        <FirebaseSensorData />
       </AnimatedCard>
 
       {/* Sensor Cards */}
