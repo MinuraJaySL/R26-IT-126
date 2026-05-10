@@ -19,10 +19,8 @@ export default function RouteOptimization() {
           <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-violet-500/10"><Route size={22} className="text-violet-500" /></div>
           <div>
             <h1 className="text-2xl font-bold" style={{ color: 'var(--text-primary)' }}>Predictive Analytics & Dynamic Routing</h1>
-            <p className="text-sm" style={{ color: 'var(--text-secondary)' }}>Component 4 — Route optimization and fleet management</p>
           </div>
         </div>
-        <Badge variant="info" className="mt-3">Placeholder — Static Data</Badge>
       </motion.div>
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">

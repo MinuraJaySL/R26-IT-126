@@ -18,9 +18,6 @@ export default function TopNavbar() {
           <h2 className="text-lg font-semibold" style={{ color: 'var(--text-primary)' }}>
             Smart Waste Management
           </h2>
-          <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
-            IoT • Machine Learning • Predictive Analytics
-          </p>
         </div>
       </div>
 
