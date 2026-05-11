@@ -11,6 +11,7 @@ import AnimatedCard from '../../components/ui/AnimatedCard';
 import Badge from '../../components/ui/Badge';
 import { sensorData, sensorHistory } from '../../data/mockData';
 import { useTheme } from '../../context/ThemeContext';
+import FirebaseSensorData from './FirebaseSensorData';
 
 const iconMap = {
   gauge: Gauge,
@@ -34,12 +35,8 @@ export default function EnvironmentalSensing() {
             <h1 className="text-2xl font-bold" style={{ color: 'var(--text-primary)' }}>
               Environmental Sensing Smart Bin
             </h1>
-            <p className="text-sm" style={{ color: 'var(--text-secondary)' }}>
-              Component 1 — IoT sensor monitoring and environmental data
-            </p>
           </div>
         </div>
-        <Badge variant="info" className="mt-3">Placeholder — Static Data</Badge>
       </motion.div>
 
       {/* Smart Bin Status */}
@@ -59,6 +56,11 @@ export default function EnvironmentalSensing() {
             <span className="text-sm font-semibold text-emerald-500">Online</span>
           </div>
         </div>
+      </AnimatedCard>
+
+      {/* Live Firebase Sensor Data */}
+      <AnimatedCard delay={0.15} hover={false}>
+        <FirebaseSensorData />
       </AnimatedCard>
 
       {/* Sensor Cards */}
