@@ -1,14 +1,15 @@
 import { motion } from 'framer-motion';
-import { Gauge, AlertTriangle } from 'lucide-react';
+import { Gauge, AlertTriangle, Loader2 } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { useState, useEffect } from 'react';
+import { ref, onValue, query, limitToLast, orderByChild } from 'firebase/database';
+import { fillLevelDatabase } from '../../firebaseFillLevel';
 
 import AnimatedCard from '../../components/ui/AnimatedCard';
 import ChartCard from '../../components/ui/ChartCard';
 import ProgressBar from '../../components/ui/ProgressBar';
 import Badge from '../../components/ui/Badge';
 
-import { binOccupancy, overflowAlerts } from '../../data/mockData';
 import { useTheme } from '../../context/ThemeContext';
 
 const statusColors = {
@@ -18,46 +19,153 @@ const statusColors = {
   overflow: '#dc2626'
 };
 
+// Determine bin status from fill level percentage
+function getStatus(fillLevel) {
+  if (fillLevel >= 90) return 'overflow';
+  if (fillLevel >= 80) return 'critical';
+  if (fillLevel >= 60) return 'warning';
+  return 'normal';
+}
+
 export default function FillLevelMonitoring() {
   const { isDark } = useTheme();
 
-  // ⭐ NEW STATES
+  // Firebase real-time states
+  const [fillLevel, setFillLevel] = useState(null);
+  const [lidOpen, setLidOpen] = useState(false);
+  const [overflowDetected, setOverflowDetected] = useState(false);
   const [lidEvents, setLidEvents] = useState([]);
   const [lidCount, setLidCount] = useState(0);
+  const [fillHistory, setFillHistory] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
 
-  // ⭐ SIMULATED REAL-TIME LID EVENTS (replace with Firebase later)
+  // ── Listen to real-time fill level sensor data from Firebase ──
   useEffect(() => {
-    const interval = setInterval(() => {
-      const newEvent = {
-        bin: "BIN_01",
-        time: new Date().toLocaleTimeString(),
-        status: "opened"
-      };
+    // Listen to the latest sensor reading from 'smartBinData'
+    const sensorRef = query(ref(fillLevelDatabase, 'smartBinData'), limitToLast(1));
 
-      setLidEvents(prev => [newEvent, ...prev.slice(0, 4)]);
-      setLidCount(prev => prev + 1);
-    }, 5000);
+    const unsubscribe = onValue(
+      sensorRef,
+      (snapshot) => {
+        console.log('Firebase snapshot received:', snapshot.val());
+        if (snapshot.exists()) {
+          const data = snapshot.val();
+          const keys = Object.keys(data);
+          const latest = data[keys[keys.length - 1]];
+          console.log('Latest reading:', latest);
 
-    return () => clearInterval(interval);
+          // Update fill level
+          if (latest.fillLevel !== undefined) {
+            setFillLevel(latest.fillLevel);
+          } else if (latest.distance !== undefined) {
+            const maxDepth = 30;
+            const pct = Math.max(0, Math.min(100, ((maxDepth - latest.distance) / maxDepth) * 100));
+            setFillLevel(Math.round(pct));
+          }
+
+          // Lid status — Firebase stores lidStatus as "OPEN" / "CLOSED"
+          if (latest.lidStatus !== undefined) {
+            const wasOpen = lidOpen;
+            const nowOpen = latest.lidStatus === 'OPEN';
+            setLidOpen(nowOpen);
+
+            // Record lid-open event
+            if (nowOpen && !wasOpen) {
+              const newEvent = {
+                bin: 'BIN_01',
+                time: latest.timestamp
+                  ? new Date(latest.timestamp).toLocaleTimeString()
+                  : new Date().toLocaleTimeString(),
+                status: 'opened'
+              };
+              setLidEvents(prev => [newEvent, ...prev.slice(0, 9)]);
+              setLidCount(prev => prev + 1);
+            }
+          }
+
+          // Overflow — derive from binStatus or fillLevel
+          if (latest.binStatus !== undefined) {
+            setOverflowDetected(
+              latest.binStatus === 'OVERFLOW' || latest.fillLevel >= 90
+            );
+          } else if (latest.fillLevel !== undefined) {
+            setOverflowDetected(latest.fillLevel >= 90);
+          }
+        } else {
+          console.warn('No data at smartBinData');
+        }
+        setLoading(false);
+      },
+      (err) => {
+        console.error('Firebase error:', err);
+        setError(err.message);
+        setLoading(false);
+      }
+    );
+
+    return () => unsubscribe();
+  }, []);  // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ── Listen to historical readings for chart ──
+  useEffect(() => {
+    const historyRef = query(ref(fillLevelDatabase, 'smartBinData'), limitToLast(8));
+
+    const unsubscribe = onValue(
+      historyRef,
+      (snapshot) => {
+        if (snapshot.exists()) {
+          const data = snapshot.val();
+          const entries = Object.values(data).map((entry) => {
+            let pct = entry.fillLevel;
+            if (pct === undefined && entry.distance !== undefined) {
+              const maxDepth = 30;
+              pct = Math.max(0, Math.min(100, ((maxDepth - entry.distance) / maxDepth) * 100));
+            }
+            return {
+              time: entry.timestamp
+                ? new Date(entry.timestamp).toLocaleTimeString()
+                : '',
+              fill: Math.round(pct ?? 0)
+            };
+          });
+          setFillHistory(entries);
+        }
+      }
+    );
+
+    return () => unsubscribe();
   }, []);
 
-  // ⭐ ABNORMAL DETECTION
+  // ⚠️ Abnormal lid usage detection
   useEffect(() => {
     if (lidCount > 10) {
       console.log("⚠️ Abnormal lid usage detected!");
     }
   }, [lidCount]);
 
-  const usageData = [
-    { hour: '6AM', bins: 25 },
-    { hour: '8AM', bins: 45 },
-    { hour: '10AM', bins: 62 },
-    { hour: '12PM', bins: 78 },
-    { hour: '2PM', bins: 70 },
-    { hour: '4PM', bins: 85 },
-    { hour: '6PM', bins: 90 },
-    { hour: '8PM', bins: 65 },
-  ];
+  // Derived values
+  const currentStatus = fillLevel !== null ? getStatus(fillLevel) : 'normal';
+
+  const overflowAlerts = [];
+  if (overflowDetected) {
+    overflowAlerts.push({
+      id: 1,
+      bin: 'BIN_01',
+      location: 'Firebase Sensor',
+      time: new Date().toLocaleTimeString(),
+      severity: 'high'
+    });
+  }
+  if (fillLevel !== null && fillLevel >= 90) {
+    overflowAlerts.push({
+      id: 2,
+      bin: 'BIN_01',
+      location: 'Fill Level Sensor',
+      time: 'Now',
+      severity: fillLevel >= 95 ? 'high' : 'medium'
+    });
+  }
 
   const ts = {
     backgroundColor: isDark ? '#1e293b' : '#fff',
@@ -65,6 +173,27 @@ export default function FillLevelMonitoring() {
     borderRadius: '12px',
     color: isDark ? '#f1f5f9' : '#0f172a'
   };
+
+  // ── LOADING STATE ──
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center gap-3 py-20">
+        <Loader2 className="animate-spin text-amber-500" size={28} />
+        <span style={{ color: 'var(--text-secondary)' }}>Connecting to Firebase sensors…</span>
+      </div>
+    );
+  }
+
+  // ── ERROR STATE ──
+  if (error) {
+    return (
+      <div className="rounded-xl border border-red-500/30 bg-red-500/5 p-6 text-center">
+        <AlertTriangle className="mx-auto mb-2 text-red-500" size={32} />
+        <p className="font-semibold text-red-500">Firebase Connection Error</p>
+        <p className="text-sm" style={{ color: 'var(--text-secondary)' }}>{error}</p>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -84,114 +213,150 @@ export default function FillLevelMonitoring() {
             </p>
           </div>
         </div>
-        <Badge variant="info" className="mt-3">
-          Real-time Simulation
+        <Badge variant="success" className="mt-3">
+          🔴 Live Firebase Data
         </Badge>
       </motion.div>
 
-      {/* OVERFLOW ALERTS */}
-      <AnimatedCard delay={0.1} hover={false}>
+      {/* REAL-TIME SENSOR CARD */}
+      <AnimatedCard delay={0.05} hover={false}>
         <div className="mb-4 flex items-center gap-2">
-          <AlertTriangle size={20} className="text-red-500" />
+          <Gauge size={20} className="text-amber-500" />
           <h3 className="text-lg font-semibold" style={{ color: 'var(--text-primary)' }}>
-            Overflow Alerts ({overflowAlerts.length})
+            Live Sensor Readings
           </h3>
         </div>
 
-        <div className="grid gap-3 md:grid-cols-3">
-          {overflowAlerts.map((alert, i) => (
-            <motion.div
-              key={alert.id}
-              initial={{ opacity: 0, scale: 0.95 }}
-              animate={{ opacity: 1, scale: 1 }}
-              transition={{ delay: 0.2 + i * 0.1 }}
-              className="rounded-xl border p-4"
-              style={{
-                borderColor: alert.severity === 'high' ? '#ef444440' : '#f59e0b40',
-                backgroundColor: isDark
-                  ? (alert.severity === 'high' ? '#450a0a20' : '#451a0320')
-                  : (alert.severity === 'high' ? '#fef2f210' : '#fffbeb10')
-              }}
-            >
-              <div className="flex items-center justify-between">
-                <span className="text-sm font-bold">{alert.bin}</span>
-                <Badge variant={alert.severity === 'high' ? 'danger' : 'warning'}>
-                  {alert.severity}
-                </Badge>
-              </div>
-              <p className="text-xs">{alert.location}</p>
-              <p className="text-xs">{alert.time}</p>
-            </motion.div>
-          ))}
+        <div className="grid gap-4 md:grid-cols-3">
+          {/* Fill Level */}
+          <div className="rounded-xl border p-4" style={{
+            borderColor: statusColors[currentStatus] + '40',
+            backgroundColor: isDark ? '#0f172a' : '#fafafa'
+          }}>
+            <p className="text-xs" style={{ color: 'var(--text-secondary)' }}>Fill Level</p>
+            <p className="text-3xl font-bold" style={{ color: statusColors[currentStatus] }}>
+              {fillLevel !== null ? `${fillLevel}%` : '—'}
+            </p>
+            <ProgressBar value={fillLevel ?? 0} color={statusColors[currentStatus]} label="" />
+            <Badge variant={currentStatus === 'normal' ? 'success' : currentStatus === 'warning' ? 'warning' : 'danger'} className="mt-2">
+              {currentStatus.toUpperCase()}
+            </Badge>
+          </div>
+
+          {/* Lid Status */}
+          <div className="rounded-xl border p-4" style={{
+            borderColor: lidOpen ? '#22c55e40' : '#64748b40',
+            backgroundColor: isDark ? '#0f172a' : '#fafafa'
+          }}>
+            <p className="text-xs" style={{ color: 'var(--text-secondary)' }}>Lid Status</p>
+            <p className="text-3xl font-bold" style={{ color: lidOpen ? '#22c55e' : '#64748b' }}>
+              {lidOpen ? 'OPEN' : 'CLOSED'}
+            </p>
+            <p className="mt-2 text-sm" style={{ color: 'var(--text-secondary)' }}>
+              Total opens: {lidCount}
+            </p>
+          </div>
+
+          {/* Overflow Sensor */}
+          <div className="rounded-xl border p-4" style={{
+            borderColor: overflowDetected ? '#ef444440' : '#10b98140',
+            backgroundColor: isDark ? '#0f172a' : '#fafafa'
+          }}>
+            <p className="text-xs" style={{ color: 'var(--text-secondary)' }}>Overflow Sensor</p>
+            <p className="text-3xl font-bold" style={{ color: overflowDetected ? '#ef4444' : '#10b981' }}>
+              {overflowDetected ? 'YES' : 'NO'}
+            </p>
+            <Badge variant={overflowDetected ? 'danger' : 'success'} className="mt-2">
+              {overflowDetected ? 'Overflow Detected!' : 'Normal'}
+            </Badge>
+          </div>
         </div>
       </AnimatedCard>
 
-      {/* ⭐ LID ACTIVITY SECTION */}
+      {/* OVERFLOW ALERTS */}
+      {overflowAlerts.length > 0 && (
+        <AnimatedCard delay={0.1} hover={false}>
+          <div className="mb-4 flex items-center gap-2">
+            <AlertTriangle size={20} className="text-red-500" />
+            <h3 className="text-lg font-semibold" style={{ color: 'var(--text-primary)' }}>
+              Overflow Alerts ({overflowAlerts.length})
+            </h3>
+          </div>
+
+          <div className="grid gap-3 md:grid-cols-3">
+            {overflowAlerts.map((alert, i) => (
+              <motion.div
+                key={alert.id}
+                initial={{ opacity: 0, scale: 0.95 }}
+                animate={{ opacity: 1, scale: 1 }}
+                transition={{ delay: 0.2 + i * 0.1 }}
+                className="rounded-xl border p-4"
+                style={{
+                  borderColor: alert.severity === 'high' ? '#ef444440' : '#f59e0b40',
+                  backgroundColor: isDark
+                    ? (alert.severity === 'high' ? '#450a0a20' : '#451a0320')
+                    : (alert.severity === 'high' ? '#fef2f210' : '#fffbeb10')
+                }}
+              >
+                <div className="flex items-center justify-between">
+                  <span className="text-sm font-bold">{alert.bin}</span>
+                  <Badge variant={alert.severity === 'high' ? 'danger' : 'warning'}>
+                    {alert.severity}
+                  </Badge>
+                </div>
+                <p className="text-xs">{alert.location}</p>
+                <p className="text-xs">{alert.time}</p>
+              </motion.div>
+            ))}
+          </div>
+        </AnimatedCard>
+      )}
+
+      {/* LID ACTIVITY SECTION */}
       <AnimatedCard delay={0.15} hover={false}>
         <div className="mb-4 flex items-center justify-between">
-          <h3 className="text-lg font-semibold">Lid Opening Activity</h3>
+          <h3 className="text-lg font-semibold" style={{ color: 'var(--text-primary)' }}>Lid Opening Activity</h3>
           <Badge variant="info">Total Opens: {lidCount}</Badge>
         </div>
 
-        <div className="space-y-2">
-          {lidEvents.map((event, i) => (
-            <div
-              key={i}
-              className="flex items-center justify-between rounded-lg border p-3"
-              style={{
-                borderColor: '#22c55e40',
-                backgroundColor: isDark ? '#052e1620' : '#f0fdf410'
-              }}
-            >
-              <span className="text-sm font-medium">{event.bin}</span>
-              <span className="text-xs">{event.time}</span>
-              <Badge variant="success">Opened</Badge>
-            </div>
-          ))}
-        </div>
+        {lidEvents.length === 0 ? (
+          <p className="text-sm" style={{ color: 'var(--text-secondary)' }}>
+            No lid events recorded yet. Waiting for sensor data…
+          </p>
+        ) : (
+          <div className="space-y-2">
+            {lidEvents.map((event, i) => (
+              <div
+                key={i}
+                className="flex items-center justify-between rounded-lg border p-3"
+                style={{
+                  borderColor: '#22c55e40',
+                  backgroundColor: isDark ? '#052e1620' : '#f0fdf410'
+                }}
+              >
+                <span className="text-sm font-medium">{event.bin}</span>
+                <span className="text-xs">{event.time}</span>
+                <Badge variant="success">Opened</Badge>
+              </div>
+            ))}
+          </div>
+        )}
       </AnimatedCard>
 
-      {/* BIN STATUS */}
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
-        {binOccupancy.map((bin, i) => (
-          <AnimatedCard key={bin.id} delay={0.2 + i * 0.05}>
-            <div className="flex items-center justify-between">
-              <span className="text-sm font-bold">{bin.id}</span>
-              <Badge variant={bin.status === 'normal' ? 'success' : bin.status === 'warning' ? 'warning' : 'danger'}>
-                {bin.status}
-              </Badge>
-            </div>
-
-            <p className="text-xs">{bin.location}</p>
-
-            <div className="mt-3">
-              <ProgressBar
-                value={bin.fillLevel}
-                color={statusColors[bin.status]}
-                label="Fill Level"
-              />
-            </div>
-
-            <div className="mt-2 flex justify-between text-xs">
-              <span>Type: {bin.type}</span>
-              <span>Last: {bin.lastCollected}</span>
-            </div>
-          </AnimatedCard>
-        ))}
-      </div>
-
-      {/* CHART */}
-      <ChartCard title="Usage Analytics" subtitle="Hourly bin fill level trend" delay={0.6}>
-        <ResponsiveContainer width="100%" height={250}>
-          <BarChart data={usageData}>
-            <CartesianGrid strokeDasharray="3 3" stroke={isDark ? '#334155' : '#e2e8f0'} />
-            <XAxis dataKey="hour" />
-            <YAxis unit="%" />
-            <Tooltip contentStyle={ts} />
-            <Bar dataKey="bins" fill="#f59e0b" radius={[6, 6, 0, 0]} />
-          </BarChart>
-        </ResponsiveContainer>
-      </ChartCard>
+      {/* FILL LEVEL HISTORY CHART */}
+      {fillHistory.length > 0 && (
+        <ChartCard title="Fill Level History" subtitle="Recent readings from Firebase" delay={0.6}>
+          <ResponsiveContainer width="100%" height={250}>
+            <BarChart data={fillHistory}>
+              <CartesianGrid strokeDasharray="3 3" stroke={isDark ? '#334155' : '#e2e8f0'} />
+              <XAxis dataKey="time" />
+              <YAxis unit="%" domain={[0, 100]} />
+              <Tooltip contentStyle={ts} />
+              <Bar dataKey="fill" fill="#f59e0b" radius={[6, 6, 0, 0]} />
+            </BarChart>
+          </ResponsiveContainer>
+        </ChartCard>
+      )}
 
     </div>
   );
