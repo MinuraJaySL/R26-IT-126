@@ -1,5 +1,8 @@
 import { motion } from 'framer-motion';
 import { Route, Truck, Fuel, Clock, MapPin, Navigation } from 'lucide-react';
+import { MapContainer, TileLayer, Marker, Popup, Polyline } from 'react-leaflet';
+import L from 'leaflet';
+import 'leaflet/dist/leaflet.css';
 import StatCard from '../../components/ui/StatCard';
 import AnimatedCard from '../../components/ui/AnimatedCard';
 import ProgressBar from '../../components/ui/ProgressBar';
@@ -9,8 +12,79 @@ import { useTheme } from '../../context/ThemeContext';
 
 const statusColors = { active: '#10b981', idle: '#94a3b8', maintenance: '#f59e0b' };
 
+// Fix default marker icon issue in webpack/vite builds
+delete L.Icon.Default.prototype._getIconUrl;
+L.Icon.Default.mergeOptions({
+  iconRetinaUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-icon-2x.png',
+  iconUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-icon.png',
+  shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-shadow.png',
+});
+
+// Custom colored marker creator
+function createColoredIcon(color) {
+  return L.divIcon({
+    className: '',
+    html: `<div style="
+      width: 14px; height: 14px; border-radius: 50%;
+      background: ${color}; border: 3px solid white;
+      box-shadow: 0 2px 8px ${color}80;
+    "></div>`,
+    iconSize: [14, 14],
+    iconAnchor: [7, 7],
+    popupAnchor: [0, -10],
+  });
+}
+
+// Bin collection points (municipal council area — Moratuwa, Sri Lanka)
+const binLocations = [
+  { id: 'BIN-001', lat: 6.7736, lng: 79.8824, zone: 'Zone A - Residential', fill: 85, status: 'critical' },
+  { id: 'BIN-002', lat: 6.7785, lng: 79.8810, zone: 'Zone A - Market', fill: 62, status: 'normal' },
+  { id: 'BIN-003', lat: 6.7810, lng: 79.8860, zone: 'Zone B - School', fill: 45, status: 'normal' },
+  { id: 'BIN-004', lat: 6.7695, lng: 79.8785, zone: 'Zone B - Residential', fill: 91, status: 'critical' },
+  { id: 'BIN-005', lat: 6.7760, lng: 79.8905, zone: 'Zone C - Office', fill: 30, status: 'normal' },
+  { id: 'BIN-006', lat: 6.7840, lng: 79.8780, zone: 'Zone C - Tourist', fill: 72, status: 'warning' },
+  { id: 'BIN-007', lat: 6.7720, lng: 79.8850, zone: 'Zone D - Residential', fill: 55, status: 'normal' },
+  { id: 'BIN-008', lat: 6.7870, lng: 79.8835, zone: 'Zone D - Market', fill: 88, status: 'critical' },
+];
+
+// Truck current positions
+const truckPositions = [
+  { id: 'TRK-001', lat: 6.7750, lng: 79.8830, driver: 'Kamal S.', status: 'active' },
+  { id: 'TRK-002', lat: 6.7800, lng: 79.8800, driver: 'Nimal R.', status: 'active' },
+  { id: 'TRK-003', lat: 6.7680, lng: 79.8770, driver: 'Saman P.', status: 'idle' },
+];
+
+// Optimized route paths
+const routePaths = [
+  {
+    name: 'Route A',
+    color: '#8b5cf6',
+    path: [
+      [6.7736, 79.8824], [6.7785, 79.8810], [6.7810, 79.8860], [6.7840, 79.8780],
+    ],
+  },
+  {
+    name: 'Route B',
+    color: '#10b981',
+    path: [
+      [6.7695, 79.8785], [6.7720, 79.8850], [6.7760, 79.8905], [6.7870, 79.8835],
+    ],
+  },
+];
+
+const truckIcon = createColoredIcon('#3b82f6');
+
+function getBinColor(status) {
+  if (status === 'critical') return '#ef4444';
+  if (status === 'warning') return '#f59e0b';
+  return '#10b981';
+}
+
 export default function RouteOptimization() {
   const { isDark } = useTheme();
+
+  // Map center (Moratuwa area)
+  const center = [6.7770, 79.8825];
 
   return (
     <div className="space-y-6">
@@ -30,19 +104,88 @@ export default function RouteOptimization() {
         <StatCard title="Time Saved" value={routeStats.timeSaved} unit="%" icon={Clock} color="#f59e0b" trend="up" trendValue="+12 min avg" delay={0.4} />
       </div>
 
-      <AnimatedCard delay={0.5} hover={false} className="relative overflow-hidden">
-        <h3 className="mb-4 text-lg font-semibold" style={{ color: 'var(--text-primary)' }}>Route Map</h3>
-        <div className="flex h-64 items-center justify-center rounded-xl" style={{ background: isDark ? 'linear-gradient(135deg, #1e1b4b 0%, #312e81 50%, #1e1b4b 100%)' : 'linear-gradient(135deg, #ede9fe 0%, #ddd6fe 50%, #c4b5fd 100%)' }}>
-          <div className="text-center">
-            <MapPin size={48} className="mx-auto mb-3" style={{ color: isDark ? '#a78bfa' : '#7c3aed' }} />
-            <p className="text-lg font-semibold" style={{ color: isDark ? '#c4b5fd' : '#5b21b6' }}>Dynamic Route Visualization</p>
-            <p className="text-sm" style={{ color: isDark ? '#a78bfa' : '#7c3aed' }}>{routeStats.distanceOptimized} km optimized today</p>
+      {/* Live Route Map */}
+      <AnimatedCard delay={0.5} hover={false} className="overflow-hidden">
+        <div className="mb-4 flex items-center justify-between">
+          <h3 className="text-lg font-semibold" style={{ color: 'var(--text-primary)' }}>Route Map</h3>
+          <div className="flex items-center gap-4 text-xs" style={{ color: 'var(--text-muted)' }}>
+            <span className="flex items-center gap-1.5">
+              <span className="inline-block h-2.5 w-2.5 rounded-full bg-red-500" /> Critical
+            </span>
+            <span className="flex items-center gap-1.5">
+              <span className="inline-block h-2.5 w-2.5 rounded-full bg-amber-500" /> Warning
+            </span>
+            <span className="flex items-center gap-1.5">
+              <span className="inline-block h-2.5 w-2.5 rounded-full bg-emerald-500" /> Normal
+            </span>
+            <span className="flex items-center gap-1.5">
+              <span className="inline-block h-2.5 w-2.5 rounded-full bg-blue-500" /> Truck
+            </span>
           </div>
         </div>
-        {[...Array(6)].map((_, i) => (
-          <motion.div key={i} className="absolute h-3 w-3 rounded-full" style={{ backgroundColor: '#8b5cf6', top: `${25 + Math.random() * 50}%`, left: `${10 + Math.random() * 80}%` }}
-            animate={{ scale: [1, 1.8, 1], opacity: [0.5, 1, 0.5] }} transition={{ duration: 2.5, repeat: Infinity, delay: i * 0.4 }} />
-        ))}
+        <div className="overflow-hidden rounded-xl" style={{ height: '420px' }}>
+          <MapContainer
+            center={center}
+            zoom={15}
+            scrollWheelZoom={true}
+            attributionControl={false}
+            style={{ height: '100%', width: '100%', borderRadius: '12px' }}
+          >
+            <TileLayer
+              url={isDark
+                ? 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png'
+                : 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png'
+              }
+            />
+
+            {/* Route polylines */}
+            {routePaths.map((route) => (
+              <Polyline
+                key={route.name}
+                positions={route.path}
+                pathOptions={{ color: route.color, weight: 4, opacity: 0.8, dashArray: '8, 6' }}
+              />
+            ))}
+
+            {/* Bin markers */}
+            {binLocations.map((bin) => (
+              <Marker key={bin.id} position={[bin.lat, bin.lng]} icon={createColoredIcon(getBinColor(bin.status))}>
+                <Popup>
+                  <div style={{ minWidth: '160px', fontFamily: 'system-ui' }}>
+                    <p style={{ fontWeight: 700, fontSize: '13px', margin: '0 0 4px' }}>{bin.id}</p>
+                    <p style={{ fontSize: '12px', color: '#64748b', margin: '0 0 6px' }}>{bin.zone}</p>
+                    <div style={{
+                      display: 'flex', alignItems: 'center', gap: '6px',
+                      padding: '4px 8px', borderRadius: '6px',
+                      backgroundColor: getBinColor(bin.status) + '15',
+                    }}>
+                      <span style={{ fontWeight: 600, fontSize: '13px', color: getBinColor(bin.status) }}>{bin.fill}% full</span>
+                    </div>
+                  </div>
+                </Popup>
+              </Marker>
+            ))}
+
+            {/* Truck markers */}
+            {truckPositions.map((truck) => (
+              <Marker key={truck.id} position={[truck.lat, truck.lng]} icon={truckIcon}>
+                <Popup>
+                  <div style={{ minWidth: '140px', fontFamily: 'system-ui' }}>
+                    <p style={{ fontWeight: 700, fontSize: '13px', margin: '0 0 4px' }}>🚛 {truck.id}</p>
+                    <p style={{ fontSize: '12px', color: '#64748b', margin: '0' }}>Driver: {truck.driver}</p>
+                    <p style={{ fontSize: '12px', color: '#3b82f6', fontWeight: 600, margin: '4px 0 0' }}>
+                      {truck.status === 'active' ? '● Active' : '○ Idle'}
+                    </p>
+                  </div>
+                </Popup>
+              </Marker>
+            ))}
+          </MapContainer>
+        </div>
+        <div className="mt-3 flex items-center justify-between text-xs" style={{ color: 'var(--text-muted)' }}>
+          <span>{routeStats.distanceOptimized} km optimized today</span>
+          <span>{binLocations.length} bins • {truckPositions.length} trucks • {routePaths.length} routes</span>
+        </div>
       </AnimatedCard>
 
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2">

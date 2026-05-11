@@ -75,7 +75,6 @@ export default function WastePrediction() {
           <div>
             <h1 className="text-2xl font-bold" style={{ color: 'var(--text-primary)' }}>
               Municipal Waste Prediction & Composition Estimation
-              Waste Prediction & Composition Estimation
             </h1>
           </div>
         </div>

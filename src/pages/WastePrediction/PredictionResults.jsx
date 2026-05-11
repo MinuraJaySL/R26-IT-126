@@ -49,67 +49,139 @@ export default function PredictionResults({ prediction }) {
 
   return (
     <div className="space-y-6">
-      {/* Municipal Council Summary Cards */}
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4">
-        <AnimatedCard delay={0.1} className="relative overflow-hidden">
-          <div className="flex items-center gap-3">
-            <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-cyan-500/10">
-              <Droplets size={24} className="text-cyan-500" />
+      {/* Next Week Prediction — Hero Cards */}
+      <div className="grid grid-cols-1 gap-5 md:grid-cols-2 lg:grid-cols-4">
+        {/* Wet Waste */}
+        <motion.div
+          initial={{ opacity: 0, y: 30 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.1, type: 'spring', stiffness: 120 }}
+          className="group relative overflow-hidden rounded-2xl p-[1px]"
+          style={{ background: 'linear-gradient(135deg, #06b6d4, #0891b2, #06b6d450)' }}
+        >
+          <div className="relative rounded-2xl px-5 py-6" style={{ backgroundColor: 'var(--bg-secondary)' }}>
+            {/* Glow */}
+            <div className="pointer-events-none absolute -right-6 -top-6 h-24 w-24 rounded-full opacity-20 blur-2xl" style={{ backgroundColor: '#06b6d4' }} />
+            <div className="mb-4 flex items-center gap-3">
+              <div className="flex h-11 w-11 items-center justify-center rounded-xl" style={{ background: 'linear-gradient(135deg, #06b6d430, #06b6d415)' }}>
+                <Droplets size={22} className="text-cyan-400" />
+              </div>
+              <p className="text-sm font-semibold tracking-wide uppercase" style={{ color: '#06b6d4' }}>Next Week Wet Waste</p>
             </div>
-            <div>
-              <p className="text-sm" style={{ color: 'var(--text-secondary)' }}>Total Wet Waste</p>
-              <motion.p initial={{ opacity: 0, scale: 0.5 }} animate={{ opacity: 1, scale: 1 }} transition={{ delay: 0.3 }}
-                className="text-3xl font-bold text-cyan-500">{prediction.totalWet} <span className="text-sm font-normal">tons</span></motion.p>
-            </div>
+            <motion.p
+              initial={{ opacity: 0, scale: 0.5 }}
+              animate={{ opacity: 1, scale: 1 }}
+              transition={{ delay: 0.3, type: 'spring' }}
+              className="text-4xl font-extrabold tracking-tight text-cyan-400"
+            >
+              {prediction.totalWet}
+              <span className="ml-1.5 text-base font-medium text-cyan-400/60">tons</span>
+            </motion.p>
+            <p className="mt-3 text-xs font-medium" style={{ color: 'var(--text-muted)' }}>Across all council zones</p>
+            <div className="absolute bottom-0 left-0 h-[3px] w-full" style={{ background: 'linear-gradient(90deg, #06b6d4, #06b6d460, transparent)' }} />
           </div>
-          <p className="mt-3 text-xs" style={{ color: 'var(--text-muted)' }}>Across all council zones</p>
-          <div className="absolute bottom-0 left-0 h-1 w-full" style={{ background: 'linear-gradient(90deg, #06b6d4, #06b6d440)' }} />
-        </AnimatedCard>
+        </motion.div>
 
-        <AnimatedCard delay={0.2} className="relative overflow-hidden">
-          <div className="flex items-center gap-3">
-            <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-violet-500/10">
-              <Package size={24} className="text-violet-500" />
+        {/* Dry Waste */}
+        <motion.div
+          initial={{ opacity: 0, y: 30 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.2, type: 'spring', stiffness: 120 }}
+          className="group relative overflow-hidden rounded-2xl p-[1px]"
+          style={{ background: 'linear-gradient(135deg, #8b5cf6, #7c3aed, #8b5cf650)' }}
+        >
+          <div className="relative rounded-2xl px-5 py-6" style={{ backgroundColor: 'var(--bg-secondary)' }}>
+            <div className="pointer-events-none absolute -right-6 -top-6 h-24 w-24 rounded-full opacity-20 blur-2xl" style={{ backgroundColor: '#8b5cf6' }} />
+            <div className="mb-4 flex items-center gap-3">
+              <div className="flex h-11 w-11 items-center justify-center rounded-xl" style={{ background: 'linear-gradient(135deg, #8b5cf630, #8b5cf615)' }}>
+                <Package size={22} className="text-violet-400" />
+              </div>
+              <p className="text-sm font-semibold tracking-wide uppercase" style={{ color: '#8b5cf6' }}>Next Week Dry Waste</p>
             </div>
-            <div>
-              <p className="text-sm" style={{ color: 'var(--text-secondary)' }}>Total Dry Waste</p>
-              <motion.p initial={{ opacity: 0, scale: 0.5 }} animate={{ opacity: 1, scale: 1 }} transition={{ delay: 0.4 }}
-                className="text-3xl font-bold text-violet-500">{prediction.totalDry} <span className="text-sm font-normal">tons</span></motion.p>
-            </div>
+            <motion.p
+              initial={{ opacity: 0, scale: 0.5 }}
+              animate={{ opacity: 1, scale: 1 }}
+              transition={{ delay: 0.4, type: 'spring' }}
+              className="text-4xl font-extrabold tracking-tight text-violet-400"
+            >
+              {prediction.totalDry}
+              <span className="ml-1.5 text-base font-medium text-violet-400/60">tons</span>
+            </motion.p>
+            <p className="mt-3 text-xs font-medium" style={{ color: 'var(--text-muted)' }}>Across all council zones</p>
+            <div className="absolute bottom-0 left-0 h-[3px] w-full" style={{ background: 'linear-gradient(90deg, #8b5cf6, #8b5cf660, transparent)' }} />
           </div>
-          <p className="mt-3 text-xs" style={{ color: 'var(--text-muted)' }}>Across all council zones</p>
-          <div className="absolute bottom-0 left-0 h-1 w-full" style={{ background: 'linear-gradient(90deg, #8b5cf6, #8b5cf640)' }} />
-        </AnimatedCard>
+        </motion.div>
 
-        <AnimatedCard delay={0.3} className="relative overflow-hidden">
-          <div className="flex items-center gap-3">
-            <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-emerald-500/10">
-              <BarChart3 size={24} className="text-emerald-500" />
+        {/* Grand Total */}
+        <motion.div
+          initial={{ opacity: 0, y: 30 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.3, type: 'spring', stiffness: 120 }}
+          className="group relative overflow-hidden rounded-2xl p-[1px]"
+          style={{ background: 'linear-gradient(135deg, #10b981, #059669, #10b98150)' }}
+        >
+          <div className="relative rounded-2xl px-5 py-6" style={{ backgroundColor: 'var(--bg-secondary)' }}>
+            <div className="pointer-events-none absolute -right-6 -top-6 h-24 w-24 rounded-full opacity-20 blur-2xl" style={{ backgroundColor: '#10b981' }} />
+            <div className="mb-4 flex items-center gap-3">
+              <div className="flex h-11 w-11 items-center justify-center rounded-xl" style={{ background: 'linear-gradient(135deg, #10b98130, #10b98115)' }}>
+                <BarChart3 size={22} className="text-emerald-400" />
+              </div>
+              <p className="text-sm font-semibold tracking-wide uppercase" style={{ color: '#10b981' }}>Next Week Total</p>
             </div>
-            <div>
-              <p className="text-sm" style={{ color: 'var(--text-secondary)' }}>Grand Total</p>
-              <motion.p initial={{ opacity: 0, scale: 0.5 }} animate={{ opacity: 1, scale: 1 }} transition={{ delay: 0.5 }}
-                className="text-3xl font-bold text-emerald-500">{prediction.grandTotal} <span className="text-sm font-normal">tons</span></motion.p>
-            </div>
+            <motion.p
+              initial={{ opacity: 0, scale: 0.5 }}
+              animate={{ opacity: 1, scale: 1 }}
+              transition={{ delay: 0.5, type: 'spring' }}
+              className="text-4xl font-extrabold tracking-tight text-emerald-400"
+            >
+              {prediction.grandTotal}
+              <span className="ml-1.5 text-base font-medium text-emerald-400/60">tons</span>
+            </motion.p>
+            <p className="mt-3 text-xs font-medium" style={{ color: 'var(--text-muted)' }}>Municipal Council Total</p>
+            <div className="absolute bottom-0 left-0 h-[3px] w-full" style={{ background: 'linear-gradient(90deg, #10b981, #10b98160, transparent)' }} />
           </div>
-          <p className="mt-3 text-xs" style={{ color: 'var(--text-muted)' }}>Municipal Council Total</p>
-          <div className="absolute bottom-0 left-0 h-1 w-full" style={{ background: 'linear-gradient(90deg, #10b981, #10b98140)' }} />
-        </AnimatedCard>
+        </motion.div>
 
-        <AnimatedCard delay={0.4} className="relative overflow-hidden">
-          <div className="flex items-center gap-3">
-            <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-amber-500/10">
-              <Target size={24} className="text-amber-500" />
+        {/* Confidence Score */}
+        <motion.div
+          initial={{ opacity: 0, y: 30 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.4, type: 'spring', stiffness: 120 }}
+          className="group relative overflow-hidden rounded-2xl p-[1px]"
+          style={{ background: 'linear-gradient(135deg, #f59e0b, #d97706, #f59e0b50)' }}
+        >
+          <div className="relative rounded-2xl px-5 py-6" style={{ backgroundColor: 'var(--bg-secondary)' }}>
+            <div className="pointer-events-none absolute -right-6 -top-6 h-24 w-24 rounded-full opacity-20 blur-2xl" style={{ backgroundColor: '#f59e0b' }} />
+            <div className="mb-4 flex items-center gap-3">
+              <div className="flex h-11 w-11 items-center justify-center rounded-xl" style={{ background: 'linear-gradient(135deg, #f59e0b30, #f59e0b15)' }}>
+                <Target size={22} className="text-amber-400" />
+              </div>
+              <p className="text-sm font-semibold tracking-wide uppercase" style={{ color: '#f59e0b' }}>Confidence Score</p>
             </div>
-            <div>
-              <p className="text-sm" style={{ color: 'var(--text-secondary)' }}>Confidence Score</p>
-              <motion.p initial={{ opacity: 0, scale: 0.5 }} animate={{ opacity: 1, scale: 1 }} transition={{ delay: 0.6 }}
-                className="text-3xl font-bold text-amber-500">{prediction.confidence}%</motion.p>
+            <motion.p
+              initial={{ opacity: 0, scale: 0.5 }}
+              animate={{ opacity: 1, scale: 1 }}
+              transition={{ delay: 0.6, type: 'spring' }}
+              className="text-4xl font-extrabold tracking-tight text-amber-400"
+            >
+              {prediction.confidence}
+              <span className="ml-0.5 text-2xl font-bold text-amber-400/70">%</span>
+            </motion.p>
+            <div className="mt-3 flex items-center gap-2">
+              <div className="h-1.5 flex-1 overflow-hidden rounded-full" style={{ backgroundColor: 'var(--border-color)' }}>
+                <motion.div
+                  initial={{ width: 0 }}
+                  animate={{ width: `${prediction.confidence}%` }}
+                  transition={{ delay: 0.7, duration: 0.8, ease: 'easeOut' }}
+                  className="h-full rounded-full"
+                  style={{ background: 'linear-gradient(90deg, #f59e0b, #fbbf24)' }}
+                />
+              </div>
+              <span className="text-xs font-medium" style={{ color: 'var(--text-muted)' }}>{prediction.zoneCount} types</span>
             </div>
+            <div className="absolute bottom-0 left-0 h-[3px] w-full" style={{ background: 'linear-gradient(90deg, #f59e0b, #f59e0b60, transparent)' }} />
           </div>
-          <p className="mt-3 text-xs" style={{ color: 'var(--text-muted)' }}>Avg. across {prediction.zoneCount} zone types</p>
-          <div className="absolute bottom-0 left-0 h-1 w-full" style={{ background: 'linear-gradient(90deg, #f59e0b, #f59e0b40)' }} />
-        </AnimatedCard>
+        </motion.div>
       </div>
 
       {/* Zone Breakdown Chart */}
@@ -144,15 +216,11 @@ export default function PredictionResults({ prediction }) {
           </thead>
           <tbody>
             {Object.entries(prediction.zoneResults).map(([zoneType, result], i) => {
-              const ZIcon = ZONE_ICONS[zoneType] || Building2;
               return (
                 <motion.tr key={zoneType} initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 0.7 + i * 0.05 }}
                   className="transition-colors hover:bg-surface-50 dark:hover:bg-surface-800/50" style={{ borderBottom: '1px solid var(--border-color)' }}>
                   <td className="px-4 py-3 font-medium" style={{ color: 'var(--text-primary)' }}>
-                    <div className="flex items-center gap-2">
-                      <ZIcon size={16} style={{ color: ZONE_COLORS[zoneType] }} />
-                      {zoneTypeLabels[zoneType]}
-                    </div>
+                    {zoneTypeLabels[zoneType]}
                   </td>
                   <td className="px-4 py-3" style={{ color: 'var(--text-secondary)' }}>{result.count}</td>
                   <td className="px-4 py-3 font-semibold text-cyan-500">{result.scaledWet}</td>

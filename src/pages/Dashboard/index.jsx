@@ -180,7 +180,7 @@ export default function Dashboard() {
         </AnimatedCard>
 
         {/* Map placeholder */}
-        <AnimatedCard delay={0.6} hover={false} className="relative overflow-hidden">
+        {/* <AnimatedCard delay={0.6} hover={false} className="relative overflow-hidden">
           <h3 className="mb-4 text-lg font-semibold" style={{ color: 'var(--text-primary)' }}>
             Zone Map
           </h3>
@@ -201,9 +201,9 @@ export default function Dashboard() {
                 Municipal Area Coverage
               </p>
             </div>
-          </div>
+          </div> */}
           {/* Decorative dots for map effect */}
-          {[...Array(8)].map((_, i) => (
+          {/* {[...Array(8)].map((_, i) => (
             <motion.div
               key={i}
               className="absolute h-2 w-2 rounded-full bg-primary-500"
@@ -223,7 +223,7 @@ export default function Dashboard() {
               }}
             />
           ))}
-        </AnimatedCard>
+        </AnimatedCard> */}
 
         {/* Smart Analytics */}
         <ChartCard

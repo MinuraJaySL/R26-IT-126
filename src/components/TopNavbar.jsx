@@ -6,7 +6,7 @@ export default function TopNavbar() {
 
   return (
     <header
-      className="sticky top-0 z-30 flex h-16 items-center justify-between border-b px-6 backdrop-blur-md"
+      className="sticky top-0 z-[9999] flex h-16 items-center justify-between border-b px-6 backdrop-blur-md"
       style={{
         backgroundColor: isDark ? 'rgba(15, 23, 42, 0.8)' : 'rgba(240, 253, 244, 0.8)',
         borderColor: 'var(--border-color)',
@@ -47,13 +47,13 @@ export default function TopNavbar() {
         </button>
 
         {/* Theme toggle */}
-        <button
+        {/* <button
           onClick={toggleTheme}
           className="flex h-10 w-10 items-center justify-center rounded-xl transition-colors hover:bg-surface-100 dark:hover:bg-surface-700/50"
           style={{ color: 'var(--text-secondary)' }}
         >
           {isDark ? <Sun size={20} /> : <Moon size={20} />}
-        </button>
+        </button> */}
 
         {/* Profile */}
         <div className="flex items-center gap-2">

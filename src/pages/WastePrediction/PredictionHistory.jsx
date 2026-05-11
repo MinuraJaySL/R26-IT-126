@@ -22,7 +22,7 @@ export default function PredictionHistory() {
         <table className="w-full text-sm">
           <thead>
             <tr style={{ borderBottom: '2px solid var(--border-color)' }}>
-              {['Date', 'Scope', 'Zone Types', 'Total Zones', 'Wet Waste', 'Dry Waste', 'Total', 'Confidence', 'Status'].map((h) => (
+              {['Week', 'Scope', 'Zone Types', 'Total Zones', 'Wet Waste', 'Dry Waste', 'Total', 'Confidence', 'Status'].map((h) => (
                 <th key={h} className="px-4 py-3 text-left font-semibold" style={{ color: 'var(--text-secondary)' }}>{h}</th>
               ))}
             </tr>
