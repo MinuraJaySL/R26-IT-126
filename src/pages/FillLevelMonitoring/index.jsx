@@ -76,9 +76,6 @@ export default function FillLevelMonitoring() {
             <Gauge size={22} className="text-amber-500" />
           </div>
           <div>
-            <h1 className="text-2xl font-bold" style={{ color: 'var(--text-primary)' }}>Smart Fill-Level & Occupancy Monitoring</h1>
-          </div>
-        </div>
             <h1 className="text-2xl font-bold" style={{ color: 'var(--text-primary)' }}>
               Smart Fill-Level & Occupancy Monitoring
             </h1>

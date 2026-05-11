@@ -5,8 +5,7 @@ import {
   Home, Store, GraduationCap, Building, Umbrella,
   ChevronDown, ChevronUp, Users, Droplets, Package, Plus, Trash2,
 } from 'lucide-react';
-import { motion } from 'framer-motion';
-import { MapPin, CloudRain, Users, Calendar, CalendarDays, Sparkles, Droplets, Package, Zap, Home, Store, GraduationCap, Building, Umbrella } from 'lucide-react';
+
 import AnimatedCard from '../../components/ui/AnimatedCard';
 import Toggle from '../../components/ui/Toggle';
 
@@ -16,11 +15,7 @@ const zoneTypes = [
   { value: 'school', label: 'School', icon: GraduationCap, color: '#f59e0b', bgClass: 'bg-amber-500/10' },
   { value: 'office', label: 'Office', icon: Building, color: '#8b5cf6', bgClass: 'bg-violet-500/10' },
   { value: 'tourist_area', label: 'Tourist Area', icon: Umbrella, color: '#ef4444', bgClass: 'bg-red-500/10' },
-  { value: 'residential', label: 'Residential', icon: Home },
-  { value: 'market', label: 'Market', icon: Store },
-  { value: 'school', label: 'School', icon: GraduationCap },
-  { value: 'office', label: 'Office', icon: Building },
-  { value: 'tourist_area', label: 'Tourist Area', icon: Umbrella },
+
 ];
 
 const weekTypes = [
@@ -133,24 +128,6 @@ export default function PredictionInputPanel({ onPredict }) {
           <div className="flex items-center gap-3">
             <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-green-800">
               <MapPin size={22} className="text-white" />
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-        <AnimatedCard delay={0.1} hover={false}>
-          <div className="mb-5 flex items-center gap-2">
-            <MapPin size={20} className="text-primary-500" />
-            <h3 className="text-lg font-semibold" style={{ color: 'var(--text-primary)' }}>Location & Environment</h3>
-          </div>
-          <div className="space-y-5">
-            <div>
-              <label className="mb-2 block text-sm font-medium" style={{ color: 'var(--text-secondary)' }}>Zone Type</label>
-              <div className="grid grid-cols-5 gap-2">
-                {zoneTypes.map((z) => (
-                  <button key={z.value} type="button" onClick={() => update('zoneType', z.value)}
-                    className={`flex flex-col items-center gap-1 rounded-xl border-2 px-2 py-3 text-xs font-medium transition-all ${formData.zoneType === z.value ? 'border-primary-500 bg-primary-500/10 text-primary-500' : 'border-transparent hover:border-primary-500/30'}`}
-                    style={formData.zoneType !== z.value ? { backgroundColor: 'var(--bg-tertiary)', color: 'var(--text-secondary)' } : {}}>
-                    <z.icon size={22} className="mb-0.5" /><span>{z.label}</span>
-                  </button>
-                ))}
-              </div>
             </div>
             <div>
               <h3 className="text-lg font-bold" style={{ color: 'var(--text-primary)' }}>Municipal Council Configuration</h3>
