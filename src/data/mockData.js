@@ -93,18 +93,18 @@ export const overflowAlerts = [
   { id: 3, bin: 'BIN-008', location: 'Zone D - Hotel Lane', time: '1 hr ago', severity: 'high' },
 ];
 
-// Prediction history (Component 3) — Municipal Council level
+// Prediction history (Component 3) — Municipal Council level (weekly forecasts)
 export const predictionHistory = [
-  { id: 1, date: '2026-05-04', scope: 'Municipal Council', zoneTypes: 5, totalZones: 12, wetWaste: 5.6, dryWaste: 3.8, confidence: 92, status: 'verified' },
-  { id: 2, date: '2026-05-03', scope: 'Municipal Council', zoneTypes: 5, totalZones: 12, wetWaste: 5.3, dryWaste: 3.5, confidence: 91, status: 'verified' },
-  { id: 3, date: '2026-05-02', scope: 'Municipal Council', zoneTypes: 5, totalZones: 12, wetWaste: 5.8, dryWaste: 4.0, confidence: 90, status: 'verified' },
-  { id: 4, date: '2026-05-01', scope: 'Municipal Council', zoneTypes: 5, totalZones: 12, wetWaste: 5.1, dryWaste: 3.4, confidence: 93, status: 'verified' },
-  { id: 5, date: '2026-04-30', scope: 'Municipal Council', zoneTypes: 5, totalZones: 12, wetWaste: 6.0, dryWaste: 4.2, confidence: 88, status: 'pending' },
-  { id: 6, date: '2026-04-29', scope: 'Municipal Council', zoneTypes: 5, totalZones: 12, wetWaste: 5.4, dryWaste: 3.7, confidence: 91, status: 'verified' },
-  { id: 7, date: '2026-04-28', scope: 'Municipal Council', zoneTypes: 5, totalZones: 12, wetWaste: 5.7, dryWaste: 3.9, confidence: 90, status: 'verified' },
-  { id: 8, date: '2026-04-27', scope: 'Municipal Council', zoneTypes: 4, totalZones: 10, wetWaste: 4.8, dryWaste: 3.2, confidence: 89, status: 'verified' },
-  { id: 9, date: '2026-04-26', scope: 'Municipal Council', zoneTypes: 5, totalZones: 12, wetWaste: 5.5, dryWaste: 3.8, confidence: 87, status: 'pending' },
-  { id: 10, date: '2026-04-25', scope: 'Municipal Council', zoneTypes: 5, totalZones: 12, wetWaste: 5.2, dryWaste: 3.6, confidence: 92, status: 'verified' },
+  { id: 1, date: '2026-05-05 – 2026-05-11', scope: 'Municipal Council', zoneTypes: 5, totalZones: 12, wetWaste: 5.6, dryWaste: 3.8, confidence: 92, status: 'verified' },
+  { id: 2, date: '2026-04-28 – 2026-05-04', scope: 'Municipal Council', zoneTypes: 5, totalZones: 12, wetWaste: 5.3, dryWaste: 3.5, confidence: 91, status: 'verified' },
+  { id: 3, date: '2026-04-21 – 2026-04-27', scope: 'Municipal Council', zoneTypes: 5, totalZones: 12, wetWaste: 5.8, dryWaste: 4.0, confidence: 90, status: 'verified' },
+  { id: 4, date: '2026-04-14 – 2026-04-20', scope: 'Municipal Council', zoneTypes: 5, totalZones: 12, wetWaste: 5.1, dryWaste: 3.4, confidence: 93, status: 'verified' },
+  { id: 5, date: '2026-04-07 – 2026-04-13', scope: 'Municipal Council', zoneTypes: 5, totalZones: 12, wetWaste: 6.0, dryWaste: 4.2, confidence: 88, status: 'pending' },
+  { id: 6, date: '2026-03-31 – 2026-04-06', scope: 'Municipal Council', zoneTypes: 5, totalZones: 12, wetWaste: 5.4, dryWaste: 3.7, confidence: 91, status: 'verified' },
+  { id: 7, date: '2026-03-24 – 2026-03-30', scope: 'Municipal Council', zoneTypes: 5, totalZones: 12, wetWaste: 5.7, dryWaste: 3.9, confidence: 90, status: 'verified' },
+  { id: 8, date: '2026-03-17 – 2026-03-23', scope: 'Municipal Council', zoneTypes: 4, totalZones: 10, wetWaste: 4.8, dryWaste: 3.2, confidence: 89, status: 'verified' },
+  { id: 9, date: '2026-03-10 – 2026-03-16', scope: 'Municipal Council', zoneTypes: 5, totalZones: 12, wetWaste: 5.5, dryWaste: 3.8, confidence: 87, status: 'pending' },
+  { id: 10, date: '2026-03-03 – 2026-03-09', scope: 'Municipal Council', zoneTypes: 5, totalZones: 12, wetWaste: 5.2, dryWaste: 3.6, confidence: 92, status: 'verified' },
 ];
 
 // Zone-based analytics

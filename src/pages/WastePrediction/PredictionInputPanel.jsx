@@ -203,7 +203,6 @@ export default function PredictionInputPanel({ onPredict }) {
           {zoneTypes.map((zone, idx) => {
             const zones = zoneConfigs[zone.value];
             const isExpanded = expandedZone === zone.value;
-            const ZIcon = zone.icon;
             return (
               <motion.div
                 key={zone.value}
@@ -220,9 +219,6 @@ export default function PredictionInputPanel({ onPredict }) {
                   className="flex w-full items-center justify-between px-5 py-4 text-left transition-colors hover:opacity-80"
                 >
                   <div className="flex items-center gap-3">
-                    <div className={`flex h-10 w-10 items-center justify-center rounded-xl ${zone.bgClass}`}>
-                      <ZIcon size={20} style={{ color: zone.color }} />
-                    </div>
                     <div>
                       <p className="text-sm font-bold" style={{ color: 'var(--text-primary)' }}>{zone.label}</p>
                       <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
