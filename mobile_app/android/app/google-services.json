@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "220984755302",
+    "project_id": "r26-it-126-waste-app",
+    "storage_bucket": "r26-it-126-waste-app.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:220984755302:android:7abd1be9b41ab39e4b99a7",
+        "android_client_info": {
+          "package_name": "com.r26it126.mobile_app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyD4T-hyua1sVaSl9GorLUn2v73x2_i1mMc"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

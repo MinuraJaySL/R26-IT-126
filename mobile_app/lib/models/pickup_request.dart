@@ -1,0 +1,48 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
+
+enum RequestStatus { active, arrived, collected, missed, expired }
+
+class PickupRequest {
+  final String id;
+  final String residentId;
+  final double lat;
+  final double lng;
+  final RequestStatus status;
+  final DateTime createdAt;
+  final DateTime? expiresAt;
+
+  PickupRequest({
+    required this.id,
+    required this.residentId,
+    required this.lat,
+    required this.lng,
+    required this.status,
+    required this.createdAt,
+    this.expiresAt,
+  });
+
+  factory PickupRequest.fromFirestore(DocumentSnapshot doc) {
+    final d = doc.data() as Map<String, dynamic>;
+    return PickupRequest(
+      id: doc.id,
+      residentId: d['residentId'] ?? '',
+      lat: (d['lat'] as num).toDouble(),
+      lng: (d['lng'] as num).toDouble(),
+      status: RequestStatus.values.firstWhere(
+        (e) => e.name == (d['status'] ?? 'active'),
+        orElse: () => RequestStatus.active,
+      ),
+      createdAt: (d['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
+      expiresAt: (d['expiresAt'] as Timestamp?)?.toDate(),
+    );
+  }
+
+  Map<String, dynamic> toMap() => {
+        'residentId': residentId,
+        'lat': lat,
+        'lng': lng,
+        'status': status.name,
+        'createdAt': Timestamp.fromDate(createdAt),
+        'expiresAt': expiresAt != null ? Timestamp.fromDate(expiresAt!) : null,
+      };
+}
