@@ -1,0 +1,43 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isDriver() {
+      return isSignedIn() &&
+        exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'driver';
+    }
+
+    // Each user can only read/write their own profile doc (email, role, fcmToken).
+    match /users/{userId} {
+      allow read, write: if isSignedIn() && request.auth.uid == userId;
+    }
+
+    // Any signed-in user can read bin data (driver map). Only drivers can seed/update bins.
+    match /bins/{binId} {
+      allow read: if isSignedIn();
+      allow write: if isDriver();
+    }
+
+    // Residents create/own their pickup requests; drivers can read/update any of them
+    // (mark arrived, reactivate missed). Residents can update only their own request's status.
+    match /pickupRequests/{requestId} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn() && request.resource.data.residentId == request.auth.uid;
+      allow update: if isSignedIn() &&
+        (resource.data.residentId == request.auth.uid || isDriver());
+      allow delete: if false;
+    }
+
+    // Drivers publish their own live GPS position; any signed-in user may read it.
+    match /driverLocations/{driverId} {
+      allow read: if isSignedIn();
+      allow write: if isSignedIn() && request.auth.uid == driverId;
+    }
+  }
+}
