@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:cloud_functions/cloud_functions.dart';
 import '../models/app_user.dart';
 import '../services/auth_service.dart';
 import '../services/notification_service.dart';
@@ -43,10 +44,38 @@ class AuthProvider extends ChangeNotifier {
     }
   }
 
-  Future<bool> register(String email, String password) async {
+  /// Step 1 of sign-up: request a 6-digit code be emailed to [email].
+  /// Returns true on success; on failure sets [error] and returns false.
+  Future<bool> requestVerificationCode(String email) async {
     _error = null;
     try {
-      final user = await _authService.register(email, password);
+      await _authService.requestVerificationCode(email);
+      return true;
+    } on FirebaseFunctionsException catch (e) {
+      _error = e.message ?? 'Could not send verification code.';
+      notifyListeners();
+      return false;
+    }
+  }
+
+  /// Step 2 of sign-up: confirm the code the user typed matches.
+  Future<bool> confirmVerificationCode(String email, String code) async {
+    _error = null;
+    try {
+      await _authService.confirmVerificationCode(email, code);
+      return true;
+    } on FirebaseFunctionsException catch (e) {
+      _error = e.message ?? 'Incorrect or expired code.';
+      notifyListeners();
+      return false;
+    }
+  }
+
+  /// Step 3 of sign-up: create the account now that the email is verified.
+  Future<bool> completeRegistration(String email, String password) async {
+    _error = null;
+    try {
+      final user = await _authService.completeRegistration(email, password);
       if (user == null) {
         _error = 'Registration failed. Please try again.';
         notifyListeners();
@@ -56,8 +85,8 @@ class AuthProvider extends ChangeNotifier {
       _saveFcmToken(); // fire-and-forget
       notifyListeners();
       return true;
-    } on Exception catch (e) {
-      _error = e.toString().replaceAll('Exception: ', '');
+    } on FirebaseFunctionsException catch (e) {
+      _error = e.message ?? 'Registration failed. Please try again.';
       notifyListeners();
       return false;
     }
