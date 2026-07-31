@@ -1,0 +1,9 @@
+# Copy this file to `.dev.vars` (gitignored) for local `wrangler dev` testing.
+# In production these are set with `wrangler secret put <NAME>`, not in a file.
+
+# Paste the FULL service account JSON on one line (Firebase Console ->
+# Project Settings -> Service Accounts -> Generate new private key).
+FIREBASE_SERVICE_ACCOUNT_KEY={"type":"service_account","project_id":"...","private_key":"...","client_email":"..."}
+
+# EmailJS -> Account -> API Keys -> Private Key
+EMAILJS_PRIVATE_KEY=your_emailjs_private_key

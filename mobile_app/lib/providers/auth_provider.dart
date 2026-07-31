@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:cloud_functions/cloud_functions.dart';
 import '../models/app_user.dart';
 import '../services/auth_service.dart';
 import '../services/notification_service.dart';
@@ -51,8 +50,8 @@ class AuthProvider extends ChangeNotifier {
     try {
       await _authService.requestVerificationCode(email);
       return true;
-    } on FirebaseFunctionsException catch (e) {
-      _error = e.message ?? 'Could not send verification code.';
+    } on VerificationApiException catch (e) {
+      _error = e.message;
       notifyListeners();
       return false;
     }
@@ -64,8 +63,8 @@ class AuthProvider extends ChangeNotifier {
     try {
       await _authService.confirmVerificationCode(email, code);
       return true;
-    } on FirebaseFunctionsException catch (e) {
-      _error = e.message ?? 'Incorrect or expired code.';
+    } on VerificationApiException catch (e) {
+      _error = e.message;
       notifyListeners();
       return false;
     }
@@ -85,8 +84,8 @@ class AuthProvider extends ChangeNotifier {
       _saveFcmToken(); // fire-and-forget
       notifyListeners();
       return true;
-    } on FirebaseFunctionsException catch (e) {
-      _error = e.message ?? 'Registration failed. Please try again.';
+    } on VerificationApiException catch (e) {
+      _error = e.message;
       notifyListeners();
       return false;
     }
