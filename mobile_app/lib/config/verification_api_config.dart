@@ -4,5 +4,5 @@
 /// something like https://greensweep-verification-worker.YOUR-SUBDOMAIN.workers.dev
 class VerificationApiConfig {
   static const String baseUrl =
-      'https://greensweep-verification-worker.example.workers.dev';
+      'https://greensweep-verification-worker.ashen-ayuranga.workers.dev';
 }

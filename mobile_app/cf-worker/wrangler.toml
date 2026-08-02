@@ -8,7 +8,7 @@ compatibility_date = "2024-11-01"
 # Secrets must NOT be listed here — [vars] is plaintext in wrangler.toml.
 [vars]
 FIREBASE_PROJECT_ID = "r26-it-126-waste-app"
-FIREBASE_WEB_API_KEY = ""
-EMAILJS_SERVICE_ID = ""
-EMAILJS_TEMPLATE_ID = ""
-EMAILJS_PUBLIC_KEY = ""
+FIREBASE_WEB_API_KEY = "AIzaSyBnNy4xuav-Gj7-TB6LJgy6SObcENaA4nM"
+EMAILJS_SERVICE_ID = "service_pgkrv9a"
+EMAILJS_TEMPLATE_ID = "template_xhqi6rd"
+EMAILJS_PUBLIC_KEY = "F855NrYRiIa91mpwn"
