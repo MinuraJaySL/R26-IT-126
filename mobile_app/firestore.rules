@@ -39,5 +39,11 @@ service cloud.firestore {
       allow read: if isSignedIn();
       allow write: if isSignedIn() && request.auth.uid == driverId;
     }
+
+    // Signup email-verification codes. Only touched by Cloud Functions via
+    // the Admin SDK (which bypasses these rules) — never directly by clients.
+    match /emailVerifications/{email} {
+      allow read, write: if false;
+    }
   }
 }
