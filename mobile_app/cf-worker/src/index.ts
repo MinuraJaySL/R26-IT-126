@@ -13,11 +13,15 @@
  * three steps below server-side; do not add an endpoint that returns the
  * plaintext code or the Firestore document contents to the client.
  *
- * Three endpoints, mirroring the three-step Flutter sign-up flow:
+ * Four endpoints, three mirroring the three-step Flutter sign-up flow, one
+ * for admin-driven driver account creation:
  *   POST /request-code          — step 1: email in, verification code emailed out
  *   POST /confirm-code          — step 2: code in, verified flag set server-side
  *   POST /complete-registration — step 3: password in, Firebase Auth account created
  *                                 (gated on step 2 having actually succeeded)
+ *   POST /admin/create-driver   — admin-only: creates a driver account server-side
+ *                                 (gated on the caller's Firestore role being 'admin',
+ *                                 checked after verifying their Firebase ID token)
  */
 
 export interface Env {
@@ -26,6 +30,7 @@ export interface Env {
   EMAILJS_SERVICE_ID: string;
   EMAILJS_TEMPLATE_ID: string;
   EMAILJS_PUBLIC_KEY: string;
+  EMAILJS_DRIVER_TEMPLATE_ID: string;
   // Secrets — set with `wrangler secret put <NAME>`, never committed.
   FIREBASE_SERVICE_ACCOUNT_KEY: string;
   EMAILJS_PRIVATE_KEY: string;
@@ -98,6 +103,36 @@ function randomCode(): string {
 function randomHex(bytes: number): string {
   const arr = crypto.getRandomValues(new Uint8Array(bytes));
   return Array.from(arr, (b) => b.toString(16).padStart(2, "0")).join("");
+}
+
+/** Picks a uniformly random character from `alphabet` via rejection sampling. */
+function randomChar(alphabet: string): string {
+  const max = Math.floor(256 / alphabet.length) * alphabet.length;
+  let n: number;
+  do {
+    n = crypto.getRandomValues(new Uint8Array(1))[0];
+  } while (n >= max);
+  return alphabet[n % alphabet.length];
+}
+
+/** 16-char temporary password with at least one lower/upper/digit/symbol. */
+function generateTempPassword(): string {
+  const lower = "abcdefghijkmnpqrstuvwxyz"; // no l/o — avoid look-alikes
+  const upper = "ABCDEFGHJKLMNPQRSTUVWXYZ"; // no I/O
+  const digits = "23456789"; // no 0/1
+  const symbols = "!@#$%^&*-_+=";
+  const all = lower + upper + digits + symbols;
+
+  const required = [randomChar(lower), randomChar(upper), randomChar(digits), randomChar(symbols)];
+  const rest = Array.from({ length: 12 }, () => randomChar(all));
+  const chars = [...required, ...rest];
+
+  // Fisher-Yates shuffle so the required chars aren't always in the same spot.
+  for (let i = chars.length - 1; i > 0; i--) {
+    const j = Math.floor((crypto.getRandomValues(new Uint32Array(1))[0] / 0xffffffff) * (i + 1));
+    [chars[i], chars[j]] = [chars[j], chars[i]];
+  }
+  return chars.join("");
 }
 
 async function sha256Hex(input: string): Promise<string> {
@@ -311,6 +346,122 @@ async function firestoreIncrement(
 }
 
 // ---------------------------------------------------------------------------
+// Firebase ID token verification — lets this Worker trust "I am uid X"
+// claims from the Flutter app without the Admin SDK. Firebase ID tokens are
+// standard RS256 JWTs signed by Google; we fetch Google's public keys (JWK
+// format) and verify the signature + standard claims ourselves, exactly as
+// https://firebase.google.com/docs/auth/admin/verify-id-tokens#verify_id_tokens_using_a_third-party_jwt_library
+// describes for non-Admin-SDK verification. Only used to authenticate the
+// *caller* of /admin/create-driver — never trust a client-supplied uid
+// without doing this first.
+// ---------------------------------------------------------------------------
+
+const GOOGLE_JWK_URL =
+  "https://www.googleapis.com/service_accounts/v1/jwk/securetoken@system.gserviceaccount.com";
+
+let cachedJwks: { keys: JsonWebKey[]; expiresAt: number } | null = null;
+
+async function getGoogleIdentityJwks(): Promise<JsonWebKey[]> {
+  if (cachedJwks && cachedJwks.expiresAt > Date.now()) return cachedJwks.keys;
+
+  const res = await fetch(GOOGLE_JWK_URL);
+  if (!res.ok) throw new ApiError("Could not verify session. Please try again.", 500);
+  const data = (await res.json()) as { keys: (JsonWebKey & { kid: string })[] };
+
+  // Respect the endpoint's own Cache-Control max-age when present; fall back
+  // to 1 hour, matching Google's typical rotation cadence.
+  const cacheControl = res.headers.get("cache-control") ?? "";
+  const maxAgeMatch = cacheControl.match(/max-age=(\d+)/);
+  const maxAgeSeconds = maxAgeMatch ? Number(maxAgeMatch[1]) : 3600;
+
+  cachedJwks = { keys: data.keys, expiresAt: Date.now() + maxAgeSeconds * 1000 };
+  return cachedJwks.keys;
+}
+
+function base64UrlDecodeToBytes(input: string): Uint8Array {
+  const padded = input.replace(/-/g, "+").replace(/_/g, "/");
+  const bin = atob(padded.padEnd(padded.length + ((4 - (padded.length % 4)) % 4), "="));
+  const bytes = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+  return bytes;
+}
+
+function base64UrlDecodeToString(input: string): string {
+  return new TextDecoder().decode(base64UrlDecodeToBytes(input));
+}
+
+/**
+ * Verifies a Firebase ID token per Google's documented rules (signature,
+ * `exp`, `iat`, `aud`, `iss`, non-empty `sub`) and returns the caller's uid.
+ * Throws ApiError(401) on any failure — expired, malformed, wrong project,
+ * bad signature, etc. This is the only thing standing between an untrusted
+ * client claim and treating a request as coming from a specific Firebase user.
+ */
+async function verifyFirebaseIdToken(env: Env, idToken: string): Promise<string> {
+  const parts = idToken.split(".");
+  if (parts.length !== 3) throw new ApiError("Invalid session. Please sign in again.", 401);
+  const [headerB64, payloadB64, signatureB64] = parts;
+
+  let header: { alg?: string; kid?: string };
+  let payload: {
+    aud?: string;
+    iss?: string;
+    exp?: number;
+    iat?: number;
+    sub?: string;
+    user_id?: string;
+  };
+  try {
+    header = JSON.parse(base64UrlDecodeToString(headerB64));
+    payload = JSON.parse(base64UrlDecodeToString(payloadB64));
+  } catch {
+    throw new ApiError("Invalid session. Please sign in again.", 401);
+  }
+
+  if (header.alg !== "RS256" || !header.kid) {
+    throw new ApiError("Invalid session. Please sign in again.", 401);
+  }
+
+  const keys = await getGoogleIdentityJwks();
+  const jwk = keys.find((k: any) => k.kid === header.kid) as JsonWebKey | undefined;
+  if (!jwk) throw new ApiError("Invalid session. Please sign in again.", 401);
+
+  const cryptoKey = await crypto.subtle.importKey(
+    "jwk",
+    jwk,
+    { name: "RSASSA-PKCS1-v1_5", hash: "SHA-256" },
+    false,
+    ["verify"]
+  );
+
+  const signedData = new TextEncoder().encode(`${headerB64}.${payloadB64}`);
+  const signature = base64UrlDecodeToBytes(signatureB64);
+  const valid = await crypto.subtle.verify(
+    "RSASSA-PKCS1-v1_5",
+    cryptoKey,
+    signature,
+    signedData
+  );
+  if (!valid) throw new ApiError("Invalid session. Please sign in again.", 401);
+
+  const nowSec = Math.floor(Date.now() / 1000);
+  const uid = payload.sub || payload.user_id;
+  if (
+    !uid ||
+    payload.aud !== env.FIREBASE_PROJECT_ID ||
+    payload.iss !== `https://securetoken.google.com/${env.FIREBASE_PROJECT_ID}` ||
+    !payload.exp ||
+    !payload.iat ||
+    nowSec >= payload.exp ||
+    nowSec < payload.iat - 60
+  ) {
+    throw new ApiError("Invalid session. Please sign in again.", 401);
+  }
+
+  return uid;
+}
+
+// ---------------------------------------------------------------------------
 // Firebase Auth (Identity Toolkit) — public REST endpoints, same ones the
 // client SDK calls under the hood. Only need the Web API key (already public
 // in firebase_options.dart), no service-account privileges required.
@@ -372,6 +523,41 @@ async function sendVerificationEmail(env: Env, email: string, code: string): Pro
   });
   if (!res.ok) {
     throw new ApiError("Failed to send verification email. Please try again.", 500);
+  }
+}
+
+/**
+ * Sends a newly-created driver their temporary password. Uses a separate
+ * EmailJS template (EMAILJS_DRIVER_TEMPLATE_ID) from the OTP one — see the
+ * template setup instructions given alongside this change.
+ */
+async function sendDriverCredentialsEmail(
+  env: Env,
+  email: string,
+  driverName: string,
+  tempPassword: string
+): Promise<void> {
+  const res = await fetch("https://api.emailjs.com/api/v1.0/email/send", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      service_id: env.EMAILJS_SERVICE_ID,
+      template_id: env.EMAILJS_DRIVER_TEMPLATE_ID,
+      user_id: env.EMAILJS_PUBLIC_KEY,
+      accessToken: env.EMAILJS_PRIVATE_KEY,
+      template_params: {
+        to_email: email,
+        driver_name: driverName,
+        temp_password: tempPassword,
+      },
+    }),
+  });
+  if (!res.ok) {
+    throw new ApiError(
+      "Driver account was created, but the welcome email failed to send. " +
+        "Ask the driver to use 'Forgot password' on the login screen.",
+      502
+    );
   }
 }
 
@@ -547,6 +733,73 @@ async function handleCompleteRegistration(req: Request, env: Env): Promise<Respo
   return json({ ok: true });
 }
 
+/**
+ * POST /admin/create-driver  { idToken, driverName, driverEmail, driverPhone, vehicleNumber }
+ * Admin-only. Verifies the caller's Firebase ID token, confirms their own
+ * users/{uid} Firestore doc has role == 'admin', then creates a Firebase
+ * Auth account for the driver with a random temporary password, writes
+ * their profile doc, and emails them the password. The password is never
+ * returned to the caller — if the email fails to send, this returns an
+ * error rather than silently leaving the admin without a way to relay it.
+ */
+async function handleCreateDriver(req: Request, env: Env): Promise<Response> {
+  const body = (await req.json()) as {
+    idToken?: string;
+    driverName?: string;
+    driverEmail?: string;
+    driverPhone?: string;
+    vehicleNumber?: string;
+  };
+
+  if (typeof body.idToken !== "string" || !body.idToken) {
+    throw new ApiError("Missing session token.", 401);
+  }
+  const driverName = String(body.driverName ?? "").trim();
+  const driverPhone = String(body.driverPhone ?? "").trim();
+  const vehicleNumber = String(body.vehicleNumber ?? "").trim();
+  const driverEmail = normalizeEmail(body.driverEmail);
+  if (!driverName) throw new ApiError("Driver name is required.", 400);
+  if (!driverPhone) throw new ApiError("Driver phone is required.", 400);
+  if (!vehicleNumber) throw new ApiError("Vehicle number is required.", 400);
+
+  const callerUid = await verifyFirebaseIdToken(env, body.idToken);
+
+  const token = await getGoogleAccessToken(env);
+  const callerDoc = await firestoreGet(env, token, `users/${callerUid}`);
+  if (!callerDoc || callerDoc.role !== "admin") {
+    throw new ApiError("You do not have permission to perform this action.", 403);
+  }
+
+  if (await emailIsRegistered(env, driverEmail)) {
+    throw new ApiError("An account with this email already exists.", 409);
+  }
+
+  const tempPassword = generateTempPassword();
+  const newUid = await createFirebaseUser(env, driverEmail, tempPassword);
+
+  await firestoreWrite(
+    env,
+    token,
+    `users/${newUid}`,
+    {
+      email: driverEmail,
+      name: driverName,
+      phone: driverPhone,
+      vehicleNumber,
+      role: "driver",
+      createdBy: callerUid,
+      createdAt: new Date(),
+    },
+    false
+  );
+
+  // If this throws, the account+doc already exist but the admin has no way
+  // to hand the driver their password — surfaced as an error, not swallowed.
+  await sendDriverCredentialsEmail(env, driverEmail, driverName, tempPassword);
+
+  return json({ ok: true });
+}
+
 // ---------------------------------------------------------------------------
 // Router
 // ---------------------------------------------------------------------------
@@ -569,6 +822,8 @@ export default {
           return await handleConfirmCode(req, env);
         case "/complete-registration":
           return await handleCompleteRegistration(req, env);
+        case "/admin/create-driver":
+          return await handleCreateDriver(req, env);
         default:
           return errorJson("Not found.", 404);
       }

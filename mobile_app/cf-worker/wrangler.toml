@@ -12,3 +12,6 @@ FIREBASE_WEB_API_KEY = "AIzaSyBnNy4xuav-Gj7-TB6LJgy6SObcENaA4nM"
 EMAILJS_SERVICE_ID = "service_pgkrv9a"
 EMAILJS_TEMPLATE_ID = "template_xhqi6rd"
 EMAILJS_PUBLIC_KEY = "F855NrYRiIa91mpwn"
+# Create this template in the EmailJS dashboard (see setup instructions),
+# then replace this placeholder with its real template ID before deploying.
+EMAILJS_DRIVER_TEMPLATE_ID = "template_fd7838t"

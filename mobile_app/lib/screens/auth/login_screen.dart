@@ -33,7 +33,17 @@ class _LoginScreenState extends State<LoginScreen> {
     setState(() => _busy = false);
     if (ok) {
       final role = auth.user?.role ?? UserRole.resident;
-      context.go(role == UserRole.driver ? '/driver' : '/resident');
+      switch (role) {
+        case UserRole.admin:
+          context.go('/admin');
+          break;
+        case UserRole.driver:
+          context.go('/driver');
+          break;
+        case UserRole.resident:
+          context.go('/resident');
+          break;
+      }
     } else {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text(auth.error ?? 'Login failed')),

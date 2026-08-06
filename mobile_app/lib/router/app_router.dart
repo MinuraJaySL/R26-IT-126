@@ -10,6 +10,9 @@ import '../screens/driver/driver_dashboard.dart';
 import '../screens/driver/driver_map_screen.dart';
 import '../screens/driver/driver_requests_screen.dart';
 import '../screens/driver/driver_missed_screen.dart';
+import '../screens/admin/admin_dashboard_screen.dart';
+import '../screens/admin/user_management_screen.dart';
+import '../screens/admin/add_driver_screen.dart';
 
 GoRouter buildRouter() {
   return GoRouter(
@@ -23,9 +26,14 @@ GoRouter buildRouter() {
 
       if (!loggedIn && !onAuth) return '/login';
       if (loggedIn && onAuth) {
-        return auth.user!.role == UserRole.driver
-            ? '/driver'
-            : '/resident';
+        switch (auth.user!.role) {
+          case UserRole.admin:
+            return '/admin';
+          case UserRole.driver:
+            return '/driver';
+          case UserRole.resident:
+            return '/resident';
+        }
       }
       return null;
     },
@@ -46,6 +54,15 @@ GoRouter buildRouter() {
       GoRoute(
         path: '/driver/missed',
         builder: (ctx, _) => const DriverMissedScreen(),
+      ),
+      GoRoute(path: '/admin', builder: (ctx, _) => const AdminDashboardScreen()),
+      GoRoute(
+        path: '/admin/users',
+        builder: (ctx, _) => const UserManagementScreen(),
+      ),
+      GoRoute(
+        path: '/admin/add-driver',
+        builder: (ctx, _) => const AddDriverScreen(),
       ),
     ],
   );

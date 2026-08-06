@@ -1,4 +1,4 @@
-enum UserRole { resident, driver }
+enum UserRole { resident, driver, admin }
 
 class AppUser {
   final String uid;
