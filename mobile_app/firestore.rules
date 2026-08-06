@@ -13,9 +13,31 @@ service cloud.firestore {
         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'driver';
     }
 
-    // Each user can only read/write their own profile doc (email, role, fcmToken).
+    function isAdmin() {
+      return isSignedIn() &&
+        exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+    }
+
+    // Each user can read their own profile doc; admins can read any profile
+    // (User Management screen). Self-signup may create its own doc but only
+    // ever as a resident (server also hardcodes this — see cf-worker). A
+    // user may update their own doc (email, fcmToken, etc) but can never
+    // change their own `role` — that would be self-elevation. Admins may
+    // update any user's doc, including role. Only admins may delete users.
     match /users/{userId} {
-      allow read, write: if isSignedIn() && request.auth.uid == userId;
+      allow read: if isSignedIn() && (request.auth.uid == userId || isAdmin());
+
+      allow create: if isSignedIn() && request.auth.uid == userId &&
+        (!('role' in request.resource.data) || request.resource.data.role == 'resident');
+
+      allow update: if isSignedIn() && (
+        (request.auth.uid == userId &&
+          request.resource.data.role == resource.data.role) ||
+        isAdmin()
+      );
+
+      allow delete: if isAdmin();
     }
 
     // Any signed-in user can read bin data (driver map). Only drivers can seed/update bins.
