@@ -4,7 +4,10 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 import '../../providers/auth_provider.dart';
-import '../../widgets/app_input_decoration.dart';
+import '../../theme/app_colors.dart';
+import '../../widgets/gradient_background.dart';
+import '../../widgets/gradient_button.dart';
+import '../../widgets/styled_text_field.dart';
 
 enum _Step { email, code, password }
 
@@ -18,7 +21,8 @@ class RegisterScreen extends StatefulWidget {
   State<RegisterScreen> createState() => _RegisterScreenState();
 }
 
-class _RegisterScreenState extends State<RegisterScreen> {
+class _RegisterScreenState extends State<RegisterScreen>
+    with SingleTickerProviderStateMixin {
   final _emailCtrl = TextEditingController();
   final _codeCtrl = TextEditingController();
   final _passCtrl = TextEditingController();
@@ -29,6 +33,23 @@ class _RegisterScreenState extends State<RegisterScreen> {
   int _resendIn = 0;
   Timer? _resendTimer;
 
+  late final AnimationController _fadeController;
+  late final Animation<double> _fadeAnimation;
+
+  @override
+  void initState() {
+    super.initState();
+    _fadeController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 500),
+    );
+    _fadeAnimation = CurvedAnimation(
+      parent: _fadeController,
+      curve: Curves.easeOut,
+    );
+    _fadeController.forward();
+  }
+
   @override
   void dispose() {
     _emailCtrl.dispose();
@@ -36,6 +57,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
     _passCtrl.dispose();
     _confirmCtrl.dispose();
     _resendTimer?.cancel();
+    _fadeController.dispose();
     super.dispose();
   }
 
@@ -114,79 +136,142 @@ class _RegisterScreenState extends State<RegisterScreen> {
     }
   }
 
+  void _handleBack() {
+    if (_step == _Step.email) {
+      context.go('/login');
+    } else if (_step == _Step.code) {
+      setState(() => _step = _Step.email);
+    } else {
+      setState(() => _step = _Step.code);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-
     return Scaffold(
-      backgroundColor: scheme.surface,
-      appBar: AppBar(
-        title: const Text('Create Account'),
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back),
-          onPressed: () {
-            if (_step == _Step.email) {
-              context.go('/login');
-            } else if (_step == _Step.code) {
-              setState(() => _step = _Step.email);
-            } else {
-              setState(() => _step = _Step.code);
-            }
-          },
-        ),
-      ),
-      body: SafeArea(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.all(24),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              _StepIndicator(step: _step),
-              const SizedBox(height: 32),
-              switch (_step) {
-                _Step.email => _EmailStep(
-                    scheme: scheme,
-                    emailCtrl: _emailCtrl,
-                    busy: _busy,
-                    onSubmit: _sendCode,
-                  ),
-                _Step.code => _CodeStep(
-                    scheme: scheme,
-                    email: _emailCtrl.text.trim(),
-                    codeCtrl: _codeCtrl,
-                    busy: _busy,
-                    resendIn: _resendIn,
-                    onVerify: _verifyCode,
-                    onResend: _sendCode,
-                  ),
-                _Step.password => _PasswordStep(
-                    scheme: scheme,
-                    passCtrl: _passCtrl,
-                    confirmCtrl: _confirmCtrl,
-                    busy: _busy,
-                    onSubmit: _createAccount,
-                  ),
-              },
-              const SizedBox(height: 16),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.center,
+      body: GradientBackground(
+        child: SafeArea(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.fromLTRB(24, 16, 24, 24),
+            child: FadeTransition(
+              opacity: _fadeAnimation,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  Text(
-                    'Already have an account?',
-                    style: TextStyle(color: scheme.onSurfaceVariant),
+                  Row(
+                    children: [
+                      _BackButton(onPressed: _handleBack),
+                      const Expanded(
+                        child: Text(
+                          'Create Account',
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.white,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 40),
+                    ],
                   ),
-                  TextButton(
-                    onPressed: () => context.go('/login'),
-                    child: const Text(
-                      'Sign In',
-                      style: TextStyle(fontWeight: FontWeight.w600),
+                  const SizedBox(height: 24),
+                  _StepIndicator(step: _step),
+                  const SizedBox(height: 24),
+                  Container(
+                    padding: const EdgeInsets.all(24),
+                    decoration: BoxDecoration(
+                      color: AppColors.cardBackground,
+                      borderRadius: BorderRadius.circular(24),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withValues(alpha: 0.12),
+                          blurRadius: 24,
+                          offset: const Offset(0, 12),
+                        ),
+                      ],
                     ),
+                    child: AnimatedSwitcher(
+                      duration: const Duration(milliseconds: 300),
+                      transitionBuilder: (child, animation) => FadeTransition(
+                        opacity: animation,
+                        child: SlideTransition(
+                          position: Tween<Offset>(
+                            begin: const Offset(0.05, 0),
+                            end: Offset.zero,
+                          ).animate(animation),
+                          child: child,
+                        ),
+                      ),
+                      child: switch (_step) {
+                        _Step.email => _EmailStep(
+                            key: const ValueKey('email'),
+                            emailCtrl: _emailCtrl,
+                            busy: _busy,
+                            onSubmit: _sendCode,
+                          ),
+                        _Step.code => _CodeStep(
+                            key: const ValueKey('code'),
+                            email: _emailCtrl.text.trim(),
+                            codeCtrl: _codeCtrl,
+                            busy: _busy,
+                            resendIn: _resendIn,
+                            onVerify: _verifyCode,
+                            onResend: _sendCode,
+                          ),
+                        _Step.password => _PasswordStep(
+                            key: const ValueKey('password'),
+                            passCtrl: _passCtrl,
+                            confirmCtrl: _confirmCtrl,
+                            busy: _busy,
+                            onSubmit: _createAccount,
+                          ),
+                      },
+                    ),
+                  ),
+                  const SizedBox(height: 20),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      const Text(
+                        'Already have an account?',
+                        style: TextStyle(color: Colors.white70),
+                      ),
+                      TextButton(
+                        onPressed: () => context.go('/login'),
+                        child: const Text(
+                          'Sign In',
+                          style: TextStyle(
+                            fontWeight: FontWeight.w600,
+                            color: Colors.white,
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
                 ],
               ),
-            ],
+            ),
           ),
         ),
+      ),
+    );
+  }
+}
+
+class _BackButton extends StatelessWidget {
+  const _BackButton({required this.onPressed});
+
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.white.withValues(alpha: 0.15),
+      shape: const CircleBorder(),
+      child: IconButton(
+        icon: const Icon(Icons.arrow_back, color: Colors.white),
+        onPressed: onPressed,
       ),
     );
   }
@@ -199,7 +284,6 @@ class _StepIndicator extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
     final labels = const ['Email', 'Verify', 'Password'];
     return Row(
       children: List.generate(3, (i) {
@@ -210,11 +294,14 @@ class _StepIndicator extends StatelessWidget {
               Expanded(
                 child: Column(
                   children: [
-                    Container(
-                      height: 4,
+                    AnimatedContainer(
+                      duration: const Duration(milliseconds: 250),
+                      height: 6,
                       decoration: BoxDecoration(
-                        color: active ? scheme.primary : scheme.surfaceContainerHighest,
-                        borderRadius: BorderRadius.circular(2),
+                        color: active
+                            ? AppColors.accent
+                            : Colors.white.withValues(alpha: 0.35),
+                        borderRadius: BorderRadius.circular(3),
                       ),
                     ),
                     const SizedBox(height: 6),
@@ -223,7 +310,9 @@ class _StepIndicator extends StatelessWidget {
                       style: TextStyle(
                         fontSize: 12,
                         fontWeight: active ? FontWeight.w600 : FontWeight.normal,
-                        color: active ? scheme.primary : scheme.onSurfaceVariant,
+                        color: active
+                            ? Colors.white
+                            : Colors.white.withValues(alpha: 0.6),
                       ),
                     ),
                   ],
@@ -240,13 +329,12 @@ class _StepIndicator extends StatelessWidget {
 
 class _EmailStep extends StatelessWidget {
   const _EmailStep({
-    required this.scheme,
+    super.key,
     required this.emailCtrl,
     required this.busy,
     required this.onSubmit,
   });
 
-  final ColorScheme scheme;
   final TextEditingController emailCtrl;
   final bool busy;
   final VoidCallback onSubmit;
@@ -256,36 +344,29 @@ class _EmailStep extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Text(
+        const Text(
           'What\'s your email?',
-          style: Theme.of(context)
-              .textTheme
-              .titleLarge
-              ?.copyWith(fontWeight: FontWeight.bold),
-        ),
-        const SizedBox(height: 4),
-        Text(
-          'We\'ll send a 6-digit code to verify it\'s really you.',
-          style: TextStyle(color: scheme.onSurfaceVariant),
-        ),
-        const SizedBox(height: 24),
-        TextField(
-          controller: emailCtrl,
-          keyboardType: TextInputType.emailAddress,
-          autofocus: true,
-          decoration: appFieldDecoration(
-            scheme,
-            label: 'Email',
-            icon: Icons.email_outlined,
+          style: TextStyle(
+            fontSize: 22,
+            fontWeight: FontWeight.bold,
+            color: AppColors.textHeading,
           ),
         ),
-        const SizedBox(height: 24),
-        _PrimaryButton(
-          label: 'Send Code',
-          busy: busy,
-          scheme: scheme,
-          onPressed: onSubmit,
+        const SizedBox(height: 4),
+        const Text(
+          'We\'ll send a 6-digit code to verify it\'s really you.',
+          style: TextStyle(color: AppColors.textSubtitle),
         ),
+        const SizedBox(height: 24),
+        StyledTextField(
+          controller: emailCtrl,
+          label: 'Email',
+          icon: Icons.email_outlined,
+          keyboardType: TextInputType.emailAddress,
+          autofocus: true,
+        ),
+        const SizedBox(height: 24),
+        GradientButton(label: 'Send Code', busy: busy, onPressed: onSubmit),
       ],
     );
   }
@@ -293,7 +374,7 @@ class _EmailStep extends StatelessWidget {
 
 class _CodeStep extends StatelessWidget {
   const _CodeStep({
-    required this.scheme,
+    super.key,
     required this.email,
     required this.codeCtrl,
     required this.busy,
@@ -302,7 +383,6 @@ class _CodeStep extends StatelessWidget {
     required this.onResend,
   });
 
-  final ColorScheme scheme;
   final String email;
   final TextEditingController codeCtrl;
   final bool busy;
@@ -315,31 +395,33 @@ class _CodeStep extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Text(
+        const Text(
           'Enter verification code',
-          style: Theme.of(context)
-              .textTheme
-              .titleLarge
-              ?.copyWith(fontWeight: FontWeight.bold),
+          style: TextStyle(
+            fontSize: 22,
+            fontWeight: FontWeight.bold,
+            color: AppColors.textHeading,
+          ),
         ),
         const SizedBox(height: 4),
         Text(
           'We sent a code to $email',
-          style: TextStyle(color: scheme.onSurfaceVariant),
+          style: const TextStyle(color: AppColors.textSubtitle),
         ),
         const SizedBox(height: 24),
-        TextField(
+        StyledTextField(
           controller: codeCtrl,
+          label: '6-digit code',
+          icon: Icons.password_outlined,
           keyboardType: TextInputType.number,
           autofocus: true,
           maxLength: 6,
           textAlign: TextAlign.center,
-          style: const TextStyle(fontSize: 24, letterSpacing: 8),
-          decoration: appFieldDecoration(
-            scheme,
-            label: '6-digit code',
-            icon: Icons.password_outlined,
-          ).copyWith(counterText: ''),
+          style: const TextStyle(
+            fontSize: 24,
+            letterSpacing: 8,
+            color: AppColors.textHeading,
+          ),
         ),
         Align(
           alignment: Alignment.centerRight,
@@ -347,16 +429,12 @@ class _CodeStep extends StatelessWidget {
             onPressed: resendIn > 0 ? null : onResend,
             child: Text(
               resendIn > 0 ? 'Resend code in ${resendIn}s' : 'Resend code',
+              style: const TextStyle(color: AppColors.primaryDark),
             ),
           ),
         ),
         const SizedBox(height: 8),
-        _PrimaryButton(
-          label: 'Verify',
-          busy: busy,
-          scheme: scheme,
-          onPressed: onVerify,
-        ),
+        GradientButton(label: 'Verify', busy: busy, onPressed: onVerify),
       ],
     );
   }
@@ -364,14 +442,13 @@ class _CodeStep extends StatelessWidget {
 
 class _PasswordStep extends StatelessWidget {
   const _PasswordStep({
-    required this.scheme,
+    super.key,
     required this.passCtrl,
     required this.confirmCtrl,
     required this.busy,
     required this.onSubmit,
   });
 
-  final ColorScheme scheme;
   final TextEditingController passCtrl;
   final TextEditingController confirmCtrl;
   final bool busy;
@@ -382,91 +459,41 @@ class _PasswordStep extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Text(
+        const Text(
           'Set a password',
-          style: Theme.of(context)
-              .textTheme
-              .titleLarge
-              ?.copyWith(fontWeight: FontWeight.bold),
+          style: TextStyle(
+            fontSize: 22,
+            fontWeight: FontWeight.bold,
+            color: AppColors.textHeading,
+          ),
         ),
         const SizedBox(height: 4),
-        Text(
+        const Text(
           'Email verified. Choose a password to finish creating your account.',
-          style: TextStyle(color: scheme.onSurfaceVariant),
+          style: TextStyle(color: AppColors.textSubtitle),
         ),
         const SizedBox(height: 24),
-        TextField(
+        StyledTextField(
           controller: passCtrl,
+          label: 'Password',
+          icon: Icons.lock_outline,
           obscureText: true,
-          decoration: appFieldDecoration(
-            scheme,
-            label: 'Password',
-            icon: Icons.lock_outline,
-          ),
         ),
         const SizedBox(height: 16),
-        TextField(
+        StyledTextField(
           controller: confirmCtrl,
+          label: 'Confirm password',
+          icon: Icons.lock_outline,
           obscureText: true,
-          decoration: appFieldDecoration(
-            scheme,
-            label: 'Confirm password',
-            icon: Icons.lock_outline,
-          ),
         ),
         const SizedBox(height: 8),
-        Text(
+        const Text(
           'New accounts are created as Resident. Driver accounts are created by admin.',
-          style: TextStyle(color: scheme.onSurfaceVariant, fontSize: 12),
+          style: TextStyle(color: AppColors.textSubtitle, fontSize: 12),
         ),
         const SizedBox(height: 16),
-        _PrimaryButton(
-          label: 'Create Account',
-          busy: busy,
-          scheme: scheme,
-          onPressed: onSubmit,
-        ),
+        GradientButton(label: 'Create Account', busy: busy, onPressed: onSubmit),
       ],
-    );
-  }
-}
-
-class _PrimaryButton extends StatelessWidget {
-  const _PrimaryButton({
-    required this.label,
-    required this.busy,
-    required this.scheme,
-    required this.onPressed,
-  });
-
-  final String label;
-  final bool busy;
-  final ColorScheme scheme;
-  final VoidCallback onPressed;
-
-  @override
-  Widget build(BuildContext context) {
-    return SizedBox(
-      height: 54,
-      child: ElevatedButton(
-        onPressed: busy ? null : onPressed,
-        style: ElevatedButton.styleFrom(
-          backgroundColor: scheme.primary,
-          foregroundColor: scheme.onPrimary,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-          elevation: 2,
-        ),
-        child: busy
-            ? SizedBox(
-                height: 22,
-                width: 22,
-                child: CircularProgressIndicator(
-                  strokeWidth: 2.4,
-                  color: scheme.onPrimary,
-                ),
-              )
-            : Text(label, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
-      ),
     );
   }
 }
