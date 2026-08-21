@@ -44,6 +44,12 @@ class _DriverMapScreenState extends State<DriverMapScreen> {
   // Arrival threshold in metres (300m to account for web GPS inaccuracy)
   static const double _arrivalThresholdM = 300;
 
+  // Throttle how often we push the driver's position to Firestore — the raw
+  // GPS stream can fire far more often than that, and hammering one document
+  // with unthrottled writes made updates lag badly for anyone watching it.
+  DateTime? _lastLocationUploadAt;
+  static const Duration _locationUploadInterval = Duration(seconds: 3);
+
   @override
   void initState() {
     super.initState();
@@ -100,13 +106,27 @@ class _DriverMapScreenState extends State<DriverMapScreen> {
       final loc = LatLng(pos.latitude, pos.longitude);
       setState(() => _driverPos = loc);
       _mapController.move(loc, _mapController.camera.zoom);
-      _fs.uploadDriverLocation(driverId, pos.latitude, pos.longitude);
+
+      final now = DateTime.now();
+      if (_lastLocationUploadAt == null ||
+          now.difference(_lastLocationUploadAt!) >= _locationUploadInterval) {
+        _lastLocationUploadAt = now;
+        _fs
+            .uploadDriverLocation(driverId, pos.latitude, pos.longitude)
+            .catchError((e) => debugPrint('Failed to upload driver location: $e'));
+      }
+
       _checkProximity(pos.latitude, pos.longitude);
     });
   }
 
   void _stopTrip() {
     _gpsSub?.cancel();
+    _lastLocationUploadAt = null;
+    final driverId = context.read<AuthProvider>().user!.uid;
+    _fs
+        .deleteDriverLocation(driverId)
+        .catchError((e) => debugPrint('Failed to clear driver location: $e'));
     setState(() {
       _tripActive = false;
       _showRoute = false;
