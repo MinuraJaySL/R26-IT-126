@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 import '../../providers/auth_provider.dart';
-import '../../services/firestore_service.dart';
 
 class DriverDashboard extends StatefulWidget {
   const DriverDashboard({super.key});
@@ -12,58 +11,6 @@ class DriverDashboard extends StatefulWidget {
 }
 
 class _DriverDashboardState extends State<DriverDashboard> {
-  final _fs = FirestoreService();
-  bool _seeding = false;
-
-  Future<void> _seedBins() async {
-    final confirm = await showDialog<bool>(
-      context: context,
-      builder: (_) => AlertDialog(
-        title: const Text('Seed Demo Bins?'),
-        content: const Text(
-          'This will add 3 demo bins (Red, Yellow, Green) to Firestore.\n\n'
-          'Run this only once — tap again to add more if needed.',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('Cancel'),
-          ),
-          ElevatedButton(
-            onPressed: () => Navigator.pop(context, true),
-            child: const Text('Seed'),
-          ),
-        ],
-      ),
-    );
-
-    if (confirm != true || !mounted) return;
-
-    setState(() => _seeding = true);
-    try {
-      await _fs.seedDemoBins();
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('3 demo bins added to Firestore!'),
-            backgroundColor: Colors.green,
-          ),
-        );
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Seed failed: $e'),
-            backgroundColor: Colors.red,
-          ),
-        );
-      }
-    } finally {
-      if (mounted) setState(() => _seeding = false);
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
     final auth = context.watch<AuthProvider>();
@@ -127,7 +74,6 @@ class _DriverDashboardState extends State<DriverDashboard> {
               onTap: () => context.push('/driver/requests'),
             ),
             const SizedBox(height: 16),
-            const SizedBox(height: 16),
             _DashCard(
               icon: Icons.warning_amber_rounded,
               title: 'Missed Requests',
@@ -135,51 +81,8 @@ class _DriverDashboardState extends State<DriverDashboard> {
               color: Colors.orange,
               onTap: () => context.push('/driver/missed'),
             ),
-            const SizedBox(height: 16),
-            _DashCard(
-              icon: _seeding ? Icons.hourglass_top : Icons.science_outlined,
-              title: 'Seed Demo Bins',
-              subtitle: 'Add 3 test bins (Red/Yellow/Green) to Firestore',
-              color: Colors.teal,
-              onTap: _seeding ? () {} : _seedBins,
-              trailing: _seeding
-                  ? const SizedBox(
-                      width: 20,
-                      height: 20,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    )
-                  : null,
-            ),
-            const SizedBox(height: 16),
-            _DashCard(
-              icon: Icons.info_outline,
-              title: 'About',
-              subtitle: 'R26-IT-126 Smart Waste — Driver Module',
-              color: Colors.grey,
-              onTap: () => _showAbout(context),
-            ),
           ],
         ),
-      ),
-    );
-  }
-
-  void _showAbout(BuildContext context) {
-    showDialog(
-      context: context,
-      builder: (_) => AlertDialog(
-        title: const Text('About'),
-        content: const Text(
-          'Smart Waste Management System\n'
-          'Driver Module — R26-IT-126\n\n'
-          'View bin priorities, methane status, and get a suggested collection route.',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('OK'),
-          ),
-        ],
       ),
     );
   }
@@ -191,7 +94,6 @@ class _DashCard extends StatelessWidget {
   final String subtitle;
   final Color color;
   final VoidCallback onTap;
-  final Widget? trailing;
 
   const _DashCard({
     required this.icon,
@@ -199,7 +101,6 @@ class _DashCard extends StatelessWidget {
     required this.subtitle,
     required this.color,
     required this.onTap,
-    this.trailing,
   });
 
   @override
@@ -214,7 +115,7 @@ class _DashCard extends StatelessWidget {
         ),
         title: Text(title, style: const TextStyle(fontWeight: FontWeight.bold)),
         subtitle: Text(subtitle),
-        trailing: trailing ?? const Icon(Icons.chevron_right),
+        trailing: const Icon(Icons.chevron_right),
         onTap: onTap,
       ),
     );
