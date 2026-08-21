@@ -1,11 +1,13 @@
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 import '../models/app_user.dart';
+import '../models/pickup_request.dart';
 import '../providers/auth_provider.dart';
 import '../screens/auth/login_screen.dart';
 import '../screens/auth/register_screen.dart';
 import '../screens/resident/resident_dashboard.dart';
 import '../screens/resident/flag_placement_screen.dart';
+import '../screens/resident/track_truck_screen.dart';
 import '../screens/driver/driver_dashboard.dart';
 import '../screens/driver/driver_map_screen.dart';
 import '../screens/driver/driver_requests_screen.dart';
@@ -44,6 +46,11 @@ GoRouter buildRouter() {
       GoRoute(
         path: '/resident/flag',
         builder: (ctx, _) => const FlagPlacementScreen(),
+      ),
+      GoRoute(
+        path: '/resident/track',
+        builder: (ctx, state) =>
+            TrackTruckScreen(request: state.extra as PickupRequest),
       ),
       GoRoute(path: '/driver', builder: (ctx, _) => const DriverDashboard()),
       GoRoute(path: '/driver/map', builder: (ctx, _) => const DriverMapScreen()),

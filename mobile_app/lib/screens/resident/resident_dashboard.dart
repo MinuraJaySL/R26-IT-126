@@ -261,6 +261,24 @@ class _RequestCard extends StatelessWidget {
                 ),
               ],
             ),
+            if (request.status == RequestStatus.active ||
+                request.status == RequestStatus.arrived) ...[
+              const SizedBox(height: 10),
+              SizedBox(
+                width: double.infinity,
+                child: OutlinedButton.icon(
+                  icon: const Icon(Icons.local_shipping, size: 18),
+                  label: const Text('Track Truck'),
+                  onPressed: () =>
+                      context.push('/resident/track', extra: request),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: Colors.indigo,
+                    side: const BorderSide(color: Colors.indigo),
+                    padding: const EdgeInsets.symmetric(vertical: 10),
+                  ),
+                ),
+              ),
+            ],
             if (request.status == RequestStatus.arrived) ...[
               const SizedBox(height: 8),
               const Row(
