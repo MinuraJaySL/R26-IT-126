@@ -83,7 +83,8 @@ class FirestoreService {
   }
 
   // All drivers currently broadcasting a live position (for resident-side
-  // truck tracking — residents don't know which driver is "theirs").
+  // truck tracking — residents don't know which driver is "theirs"). Includes
+  // updatedAt so the UI can filter out stale, never-cleaned-up entries.
   Stream<List<Map<String, dynamic>>> watchAllDriverLocations() {
     return _db.collection('driverLocations').snapshots().map(
           (snap) => snap.docs.map((doc) {
@@ -92,9 +93,16 @@ class FirestoreService {
               'driverId': doc.id,
               'lat': (d['lat'] as num).toDouble(),
               'lng': (d['lng'] as num).toDouble(),
+              'updatedAt': (d['updatedAt'] as Timestamp?)?.toDate(),
             };
           }).toList(),
         );
+  }
+
+  // Called when a driver ends their trip so they disappear from anyone
+  // tracking them immediately, instead of leaving a stale last-known position.
+  Future<void> deleteDriverLocation(String driverId) {
+    return _db.collection('driverLocations').doc(driverId).delete();
   }
 
   // Clear all existing bins then seed 7 realistic mock bins.
