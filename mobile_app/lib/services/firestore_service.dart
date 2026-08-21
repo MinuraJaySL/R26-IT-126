@@ -82,6 +82,21 @@ class FirestoreService {
         .map((doc) => doc.exists ? doc.data() : null);
   }
 
+  // All drivers currently broadcasting a live position (for resident-side
+  // truck tracking — residents don't know which driver is "theirs").
+  Stream<List<Map<String, dynamic>>> watchAllDriverLocations() {
+    return _db.collection('driverLocations').snapshots().map(
+          (snap) => snap.docs.map((doc) {
+            final d = doc.data();
+            return {
+              'driverId': doc.id,
+              'lat': (d['lat'] as num).toDouble(),
+              'lng': (d['lng'] as num).toDouble(),
+            };
+          }).toList(),
+        );
+  }
+
   // Clear all existing bins then seed 7 realistic mock bins.
   // Bins are spread ~3 km around Colombo for a meaningful route demo.
   Future<void> seedDemoBins() async {
