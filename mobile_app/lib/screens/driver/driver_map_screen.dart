@@ -50,6 +50,12 @@ class _DriverMapScreenState extends State<DriverMapScreen> {
   DateTime? _lastLocationUploadAt;
   static const Duration _locationUploadInterval = Duration(seconds: 3);
 
+  // Auto-reroute when the driver strays this far from the displayed route
+  // (e.g. takes a different road) — mirrors Google Maps' off-route recalc.
+  DateTime? _lastRerouteAt;
+  static const double _offRouteThresholdM = 150;
+  static const Duration _rerouteCooldown = Duration(seconds: 15);
+
   @override
   void initState() {
     super.initState();
@@ -76,6 +82,31 @@ class _DriverMapScreenState extends State<DriverMapScreen> {
             sin(dLng / 2) *
             sin(dLng / 2);
     return r * 2 * atan2(sqrt(a), sqrt(1 - a));
+  }
+
+  double _minDistanceToRoute(double lat, double lng, List<LatLng> routePoints) {
+    double minDist = double.infinity;
+    for (final p in routePoints) {
+      final d = _haversine(lat, lng, p.latitude, p.longitude);
+      if (d < minDist) minDist = d;
+    }
+    return minDist;
+  }
+
+  void _checkOffRoute(double lat, double lng) {
+    if (!_showRoute || _loadingRoute || _bins.isEmpty) return;
+    final routePoints = _buildRoutePoints();
+    if (routePoints.isEmpty) return;
+
+    final now = DateTime.now();
+    final cooldownElapsed = _lastRerouteAt == null ||
+        now.difference(_lastRerouteAt!) >= _rerouteCooldown;
+    if (!cooldownElapsed) return;
+
+    if (_minDistanceToRoute(lat, lng, routePoints) > _offRouteThresholdM) {
+      _lastRerouteAt = now;
+      _suggestRoute();
+    }
   }
 
   void _checkProximity(double lat, double lng) {
@@ -117,12 +148,14 @@ class _DriverMapScreenState extends State<DriverMapScreen> {
       }
 
       _checkProximity(pos.latitude, pos.longitude);
+      _checkOffRoute(pos.latitude, pos.longitude);
     });
   }
 
   void _stopTrip() {
     _gpsSub?.cancel();
     _lastLocationUploadAt = null;
+    _lastRerouteAt = null;
     final driverId = context.read<AuthProvider>().user!.uid;
     _fs
         .deleteDriverLocation(driverId)
