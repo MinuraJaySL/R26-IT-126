@@ -344,6 +344,23 @@ class _DriverMapScreenState extends State<DriverMapScreen> {
     ];
   }
 
+  // Trims the already-driven portion off the front of the route so only the
+  // remaining path ahead of the driver is drawn — mirrors turn-by-turn nav.
+  List<LatLng> _visibleRoutePoints(List<LatLng> fullRoute) {
+    if (fullRoute.isEmpty) return fullRoute;
+    int nearestIndex = 0;
+    double nearestDist = double.infinity;
+    for (int i = 0; i < fullRoute.length; i++) {
+      final d = _haversine(_driverPos.latitude, _driverPos.longitude,
+          fullRoute[i].latitude, fullRoute[i].longitude);
+      if (d < nearestDist) {
+        nearestDist = d;
+        nearestIndex = i;
+      }
+    }
+    return fullRoute.sublist(nearestIndex);
+  }
+
   String _formatTime(DateTime dt) {
     return '${dt.day}/${dt.month} ${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}';
   }
@@ -385,7 +402,7 @@ class _DriverMapScreenState extends State<DriverMapScreen> {
         builder: (context, snap) {
           _bins = snap.data ?? [];
           final markers = _buildMarkers(_bins);
-          final routePoints = _buildRoutePoints();
+          final routePoints = _visibleRoutePoints(_buildRoutePoints());
 
           return Stack(
             children: [
