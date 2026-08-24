@@ -15,7 +15,7 @@ const navItems = [
   { path: '/environmental-sensing', label: 'Environmental Sensing', icon: Radio, component: 1 },
   { path: '/fill-level-monitoring', label: 'Fill Level Monitor', icon: Gauge, component: 2 },
   { path: '/waste-prediction', label: 'Waste Prediction', icon: BrainCircuit, component: 3 },
-  { path: '/route-optimization', label: 'Route Optimization', icon: Route, component: 4 },
+  // { path: '/route-optimization', label: 'Route Optimization', icon: Route, component: 4 },
 ];
 
 export default function Sidebar({ collapsed, setCollapsed }) {
