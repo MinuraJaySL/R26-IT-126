@@ -24,12 +24,16 @@ class AdminUserSummary {
     required this.email,
     required this.name,
     required this.role,
+    required this.phone,
+    required this.vehicleNumber,
   });
 
   final String uid;
   final String email;
   final String name;
   final String role;
+  final String phone;
+  final String vehicleNumber;
 
   factory AdminUserSummary.fromDoc(String uid, Map<String, dynamic> data) {
     return AdminUserSummary(
@@ -37,6 +41,8 @@ class AdminUserSummary {
       email: (data['email'] as String?) ?? '',
       name: (data['name'] as String?) ?? '',
       role: (data['role'] as String?) ?? 'resident',
+      phone: (data['phone'] as String?) ?? '',
+      vehicleNumber: (data['vehicleNumber'] as String?) ?? '',
     );
   }
 }
@@ -64,6 +70,23 @@ class AdminService {
       counts[u.role] = (counts[u.role] ?? 0) + 1;
     }
     return counts;
+  }
+
+  /// Updates an existing driver's own profile fields. Unlike createDriver,
+  /// this doesn't need the Worker — it's just a Firestore write, and
+  /// firestore.rules already grants admins unconditional update access to
+  /// any user doc, so this can go straight through the client SDK.
+  Future<void> updateDriverDetails({
+    required String uid,
+    required String name,
+    required String phone,
+    required String vehicleNumber,
+  }) {
+    return _db.collection('users').doc(uid).update({
+      'name': name,
+      'phone': phone,
+      'vehicleNumber': vehicleNumber,
+    });
   }
 
   /// Calls the Worker's admin-only endpoint to create a driver account.
