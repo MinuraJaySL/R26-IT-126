@@ -53,6 +53,23 @@ service cloud.firestore {
       allow create: if isSignedIn() && request.resource.data.residentId == request.auth.uid;
       allow update: if isSignedIn() &&
         (resource.data.residentId == request.auth.uid || isDriver());
+
+      // Residents may delete their own request to undo a mistake, but only
+      // within 10 minutes of placing it and only while it's still `active`
+      // (once a driver has responded — arrived/etc — it's too late to undo).
+      allow delete: if isSignedIn() &&
+        resource.data.residentId == request.auth.uid &&
+        resource.data.status == 'active' &&
+        request.time < resource.data.createdAt + duration.value(10, 'm');
+    }
+
+    // Residents report a bin problem (overflow, damage, etc) with a location
+    // + note; any driver can pick it up and resolve it. Residents can't edit
+    // or delete after submitting, and can't resolve their own report.
+    match /binReports/{reportId} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn() && request.resource.data.residentId == request.auth.uid;
+      allow update: if isDriver();
       allow delete: if false;
     }
 

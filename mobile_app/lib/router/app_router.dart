@@ -8,8 +8,12 @@ import '../screens/auth/register_screen.dart';
 import '../screens/resident/resident_dashboard.dart';
 import '../screens/resident/complete_profile_screen.dart';
 import '../screens/resident/flag_placement_screen.dart';
+import '../screens/resident/my_pickups_screen.dart';
+import '../screens/resident/my_reports_screen.dart';
+import '../screens/resident/report_issue_screen.dart';
 import '../screens/resident/track_truck_screen.dart';
 import '../screens/driver/driver_dashboard.dart';
+import '../screens/driver/driver_bin_reports_screen.dart';
 import '../screens/driver/driver_map_screen.dart';
 import '../screens/driver/driver_requests_screen.dart';
 import '../screens/driver/driver_missed_screen.dart';
@@ -69,9 +73,21 @@ GoRouter buildRouter() {
         builder: (ctx, _) => const FlagPlacementScreen(),
       ),
       GoRoute(
+        path: '/resident/pickups',
+        builder: (ctx, _) => const MyPickupsScreen(),
+      ),
+      GoRoute(
         path: '/resident/track',
         builder: (ctx, state) =>
-            TrackTruckScreen(request: state.extra as PickupRequest),
+            TrackTruckScreen(request: state.extra as PickupRequest?),
+      ),
+      GoRoute(
+        path: '/resident/reports',
+        builder: (ctx, _) => const MyReportsScreen(),
+      ),
+      GoRoute(
+        path: '/resident/report',
+        builder: (ctx, _) => const ReportIssueScreen(),
       ),
       GoRoute(path: '/driver', builder: (ctx, _) => const DriverDashboard()),
       GoRoute(path: '/driver/map', builder: (ctx, _) => const DriverMapScreen()),
@@ -82,6 +98,10 @@ GoRouter buildRouter() {
       GoRoute(
         path: '/driver/missed',
         builder: (ctx, _) => const DriverMissedScreen(),
+      ),
+      GoRoute(
+        path: '/driver/reports',
+        builder: (ctx, _) => const DriverBinReportsScreen(),
       ),
       GoRoute(path: '/admin', builder: (ctx, _) => const AdminDashboardScreen()),
       GoRoute(

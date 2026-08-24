@@ -17,7 +17,10 @@ class _ResidentDashboardState extends State<ResidentDashboard> {
   final _fs = FirestoreService();
   StreamSubscription<List<PickupRequest>>? _sub;
 
-  // Track which requests were previously active so we can detect collections
+  // Track which requests were previously active so we can detect collections.
+  // This listener lives on the dashboard (not the pickups list screen) so it
+  // keeps firing arrival/collection alerts no matter which resident screen
+  // is currently open.
   final Set<String> _knownActiveIds = {};
   bool _initialLoad = true;
 
@@ -114,11 +117,9 @@ class _ResidentDashboardState extends State<ResidentDashboard> {
       );
     }
 
-    final uid = auth.user!.uid;
-
     return Scaffold(
       appBar: AppBar(
-        title: const Text('My Pickups'),
+        title: const Text('Resident Dashboard'),
         backgroundColor: Colors.green,
         foregroundColor: Colors.white,
         actions: [
@@ -129,39 +130,53 @@ class _ResidentDashboardState extends State<ResidentDashboard> {
           ),
         ],
       ),
-      body: StreamBuilder<List<PickupRequest>>(
-        stream: _fs.watchMyRequests(uid),
-        builder: (context, snap) {
-          if (snap.connectionState == ConnectionState.waiting) {
-            return const Center(child: CircularProgressIndicator());
-          }
-          if (snap.hasError) {
-            return Center(
-              child: Text('Error loading requests: ${snap.error}',
-                  style: const TextStyle(color: Colors.red)),
-            );
-          }
-          final requests = snap.data ?? [];
-          if (requests.isEmpty) {
-            return const Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(Icons.inbox_outlined, size: 64, color: Colors.grey),
-                  SizedBox(height: 12),
-                  Text('No pickup requests yet.',
-                      style: TextStyle(color: Colors.grey)),
-                ],
-              ),
-            );
-          }
-          return ListView.separated(
-            padding: const EdgeInsets.all(16),
-            itemCount: requests.length,
-            separatorBuilder: (ctx, _) => const SizedBox(height: 8),
-            itemBuilder: (context, i) => _RequestCard(request: requests[i]),
-          );
-        },
+      body: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            const SizedBox(height: 8),
+            const Icon(Icons.eco, size: 64, color: Colors.green),
+            const SizedBox(height: 12),
+            Text(
+              'Welcome',
+              textAlign: TextAlign.center,
+              style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                    fontWeight: FontWeight.bold,
+                  ),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              auth.user?.email ?? '',
+              textAlign: TextAlign.center,
+              style: const TextStyle(color: Colors.grey),
+            ),
+            const SizedBox(height: 40),
+            _DashCard(
+              icon: Icons.inbox_outlined,
+              title: 'My Pickups',
+              subtitle: 'View & manage your pickup requests',
+              color: Colors.green,
+              onTap: () => context.push('/resident/pickups'),
+            ),
+            const SizedBox(height: 16),
+            _DashCard(
+              icon: Icons.local_shipping_outlined,
+              title: 'Track Trucks Nearby',
+              subtitle: 'See live collection trucks on the map',
+              color: Colors.indigo,
+              onTap: () => context.push('/resident/track'),
+            ),
+            const SizedBox(height: 16),
+            _DashCard(
+              icon: Icons.report_problem_outlined,
+              title: 'My Reports',
+              subtitle: 'Report a bin problem & see how it was resolved',
+              color: Colors.red,
+              onTap: () => context.push('/resident/reports'),
+            ),
+          ],
+        ),
       ),
       floatingActionButton: FloatingActionButton.extended(
         backgroundColor: Colors.green,
@@ -174,197 +189,36 @@ class _ResidentDashboardState extends State<ResidentDashboard> {
   }
 }
 
-class _RequestCard extends StatelessWidget {
-  final PickupRequest request;
-  const _RequestCard({required this.request});
+class _DashCard extends StatelessWidget {
+  final IconData icon;
+  final String title;
+  final String subtitle;
+  final Color color;
+  final VoidCallback onTap;
 
-  Color _statusColor() {
-    switch (request.status) {
-      case RequestStatus.active:
-        return Colors.green;
-      case RequestStatus.arrived:
-        return Colors.indigo;
-      case RequestStatus.collected:
-        return Colors.blue;
-      case RequestStatus.missed:
-        return Colors.orange;
-      case RequestStatus.expired:
-        return Colors.grey;
-    }
-  }
-
-  IconData _statusIcon() {
-    switch (request.status) {
-      case RequestStatus.active:
-        return Icons.hourglass_top;
-      case RequestStatus.arrived:
-        return Icons.local_shipping;
-      case RequestStatus.collected:
-        return Icons.check_circle;
-      case RequestStatus.missed:
-        return Icons.warning_amber_rounded;
-      case RequestStatus.expired:
-        return Icons.cancel_outlined;
-    }
-  }
+  const _DashCard({
+    required this.icon,
+    required this.title,
+    required this.subtitle,
+    required this.color,
+    required this.onTap,
+  });
 
   @override
   Widget build(BuildContext context) {
     return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-                  decoration: BoxDecoration(
-                    color: _statusColor().withValues(alpha: 0.15),
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(_statusIcon(), color: _statusColor(), size: 14),
-                      const SizedBox(width: 4),
-                      Text(
-                        request.status.name.toUpperCase(),
-                        style: TextStyle(
-                          color: _statusColor(),
-                          fontWeight: FontWeight.bold,
-                          fontSize: 12,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                const Spacer(),
-                Text(
-                  _formatTime(request.createdAt),
-                  style: const TextStyle(color: Colors.grey, fontSize: 12),
-                ),
-              ],
-            ),
-            const SizedBox(height: 10),
-            Row(
-              children: [
-                const Icon(Icons.location_on, size: 16, color: Colors.grey),
-                const SizedBox(width: 4),
-                Text(
-                  '${request.lat.toStringAsFixed(5)}, ${request.lng.toStringAsFixed(5)}',
-                  style: const TextStyle(fontSize: 13),
-                ),
-              ],
-            ),
-            if (request.status == RequestStatus.active ||
-                request.status == RequestStatus.arrived) ...[
-              const SizedBox(height: 10),
-              SizedBox(
-                width: double.infinity,
-                child: OutlinedButton.icon(
-                  icon: const Icon(Icons.local_shipping, size: 18),
-                  label: const Text('Track Truck'),
-                  onPressed: () =>
-                      context.push('/resident/track', extra: request),
-                  style: OutlinedButton.styleFrom(
-                    foregroundColor: Colors.indigo,
-                    side: const BorderSide(color: Colors.indigo),
-                    padding: const EdgeInsets.symmetric(vertical: 10),
-                  ),
-                ),
-              ),
-            ],
-            if (request.status == RequestStatus.arrived) ...[
-              const SizedBox(height: 8),
-              const Row(
-                children: [
-                  Icon(Icons.local_shipping, size: 16, color: Colors.indigo),
-                  SizedBox(width: 4),
-                  Text(
-                    'Truck has arrived — confirm handover below',
-                    style: TextStyle(
-                        fontSize: 13,
-                        color: Colors.indigo,
-                        fontWeight: FontWeight.w600),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 10),
-              Row(
-                children: [
-                  Expanded(
-                    child: ElevatedButton.icon(
-                      icon: const Icon(Icons.check_circle, size: 18),
-                      label: const Text('Handed Over'),
-                      onPressed: () => FirestoreService()
-                          .updateRequestStatus(
-                              request.id, RequestStatus.collected),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.green,
-                        foregroundColor: Colors.white,
-                        padding: const EdgeInsets.symmetric(vertical: 10),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: OutlinedButton.icon(
-                      icon: const Icon(Icons.warning_amber_rounded, size: 18),
-                      label: const Text('Missed'),
-                      onPressed: () => FirestoreService()
-                          .updateRequestStatus(
-                              request.id, RequestStatus.missed),
-                      style: OutlinedButton.styleFrom(
-                        foregroundColor: Colors.orange,
-                        side: const BorderSide(color: Colors.orange),
-                        padding: const EdgeInsets.symmetric(vertical: 10),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ] else if (request.status == RequestStatus.collected) ...[
-              const SizedBox(height: 8),
-              const Row(
-                children: [
-                  Icon(Icons.check_circle, size: 16, color: Colors.blue),
-                  SizedBox(width: 4),
-                  Text(
-                    'Waste successfully handed over',
-                    style: TextStyle(
-                        fontSize: 13,
-                        color: Colors.blue,
-                        fontWeight: FontWeight.w500),
-                  ),
-                ],
-              ),
-            ] else if (request.status == RequestStatus.missed) ...[
-              const SizedBox(height: 8),
-              const Row(
-                children: [
-                  Icon(Icons.warning_amber_rounded,
-                      size: 16, color: Colors.orange),
-                  SizedBox(width: 4),
-                  Text(
-                    'Missed — waste was not handed over',
-                    style: TextStyle(
-                        fontSize: 13,
-                        color: Colors.orange,
-                        fontWeight: FontWeight.w500),
-                  ),
-                ],
-              ),
-            ],
-          ],
+      elevation: 2,
+      child: ListTile(
+        contentPadding: const EdgeInsets.all(16),
+        leading: CircleAvatar(
+          backgroundColor: color.withValues(alpha: 0.15),
+          child: Icon(icon, color: color),
         ),
+        title: Text(title, style: const TextStyle(fontWeight: FontWeight.bold)),
+        subtitle: Text(subtitle),
+        trailing: const Icon(Icons.chevron_right),
+        onTap: onTap,
       ),
     );
-  }
-
-  String _formatTime(DateTime dt) {
-    return '${dt.day}/${dt.month} ${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}';
   }
 }
