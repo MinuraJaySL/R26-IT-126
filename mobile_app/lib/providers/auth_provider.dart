@@ -91,6 +91,27 @@ class AuthProvider extends ChangeNotifier {
     }
   }
 
+  /// Completes a resident's profile (name + phone) after self-registration.
+  /// Only ever touches `name`/`phone` — never `role`, so it stays within
+  /// what a signed-in user is allowed to update on their own doc.
+  Future<bool> completeProfile(String name, String phone) async {
+    if (_user == null) return false;
+    _error = null;
+    try {
+      await FirebaseFirestore.instance
+          .collection('users')
+          .doc(_user!.uid)
+          .update({'name': name, 'phone': phone});
+      _user = _user!.copyWith(name: name, phone: phone);
+      notifyListeners();
+      return true;
+    } catch (e) {
+      _error = 'Could not save your profile. Please try again.';
+      notifyListeners();
+      return false;
+    }
+  }
+
   Future<void> signOut() async {
     await _authService.signOut();
     _user = null;
