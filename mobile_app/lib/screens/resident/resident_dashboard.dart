@@ -123,11 +123,9 @@ class _ResidentDashboardState extends State<ResidentDashboard> {
         foregroundColor: Colors.white,
         actions: [
           IconButton(
-            icon: const Icon(Icons.logout),
-            onPressed: () async {
-              await auth.signOut();
-              if (context.mounted) context.go('/login');
-            },
+            icon: const Icon(Icons.person_outline),
+            tooltip: 'Profile',
+            onPressed: () => context.push('/profile'),
           ),
         ],
       ),
