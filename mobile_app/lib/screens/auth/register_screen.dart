@@ -72,7 +72,9 @@ class _RegisterScreenState extends State<RegisterScreen>
   }
 
   void _showError(String message) {
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(message)));
   }
 
   Future<void> _sendCode() async {
@@ -153,103 +155,112 @@ class _RegisterScreenState extends State<RegisterScreen>
         child: SafeArea(
           child: SingleChildScrollView(
             padding: const EdgeInsets.fromLTRB(24, 16, 24, 24),
-            child: FadeTransition(
-              opacity: _fadeAnimation,
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  Row(
+            child: Center(
+              child: ConstrainedBox(
+                // Same reasoning as the login screen: caps the form at a
+                // phone-like width on wide (desktop/PC) viewports instead
+                // of stretching it edge-to-edge across the window.
+                constraints: const BoxConstraints(maxWidth: 440),
+                child: FadeTransition(
+                  opacity: _fadeAnimation,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
-                      _BackButton(onPressed: _handleBack),
-                      const Expanded(
-                        child: Text(
-                          'Create Account',
-                          textAlign: TextAlign.center,
-                          style: TextStyle(
-                            fontSize: 18,
-                            fontWeight: FontWeight.bold,
-                            color: Colors.white,
+                      Row(
+                        children: [
+                          _BackButton(onPressed: _handleBack),
+                          const Expanded(
+                            child: Text(
+                              'Create Account',
+                              textAlign: TextAlign.center,
+                              style: TextStyle(
+                                fontSize: 18,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.white,
+                              ),
+                            ),
                           ),
+                          const SizedBox(width: 40),
+                        ],
+                      ),
+                      const SizedBox(height: 24),
+                      _StepIndicator(step: _step),
+                      const SizedBox(height: 24),
+                      Container(
+                        padding: const EdgeInsets.all(24),
+                        decoration: BoxDecoration(
+                          color: AppColors.cardBackground,
+                          borderRadius: BorderRadius.circular(24),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withValues(alpha: 0.12),
+                              blurRadius: 24,
+                              offset: const Offset(0, 12),
+                            ),
+                          ],
+                        ),
+                        child: AnimatedSwitcher(
+                          duration: const Duration(milliseconds: 300),
+                          transitionBuilder: (child, animation) =>
+                              FadeTransition(
+                                opacity: animation,
+                                child: SlideTransition(
+                                  position: Tween<Offset>(
+                                    begin: const Offset(0.05, 0),
+                                    end: Offset.zero,
+                                  ).animate(animation),
+                                  child: child,
+                                ),
+                              ),
+                          child: switch (_step) {
+                            _Step.email => _EmailStep(
+                              key: const ValueKey('email'),
+                              emailCtrl: _emailCtrl,
+                              busy: _busy,
+                              onSubmit: _sendCode,
+                            ),
+                            _Step.code => _CodeStep(
+                              key: const ValueKey('code'),
+                              email: _emailCtrl.text.trim(),
+                              codeCtrl: _codeCtrl,
+                              busy: _busy,
+                              resendIn: _resendIn,
+                              onVerify: _verifyCode,
+                              onResend: _sendCode,
+                            ),
+                            _Step.password => _PasswordStep(
+                              key: const ValueKey('password'),
+                              passCtrl: _passCtrl,
+                              confirmCtrl: _confirmCtrl,
+                              busy: _busy,
+                              onSubmit: _createAccount,
+                            ),
+                          },
                         ),
                       ),
-                      const SizedBox(width: 40),
+                      const SizedBox(height: 20),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          const Text(
+                            'Already have an account?',
+                            style: TextStyle(color: Colors.white70),
+                          ),
+                          TextButton(
+                            onPressed: () => context.go('/login'),
+                            child: const Text(
+                              'Sign In',
+                              style: TextStyle(
+                                fontWeight: FontWeight.w600,
+                                color: Colors.white,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
                     ],
                   ),
-                  const SizedBox(height: 24),
-                  _StepIndicator(step: _step),
-                  const SizedBox(height: 24),
-                  Container(
-                    padding: const EdgeInsets.all(24),
-                    decoration: BoxDecoration(
-                      color: AppColors.cardBackground,
-                      borderRadius: BorderRadius.circular(24),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black.withValues(alpha: 0.12),
-                          blurRadius: 24,
-                          offset: const Offset(0, 12),
-                        ),
-                      ],
-                    ),
-                    child: AnimatedSwitcher(
-                      duration: const Duration(milliseconds: 300),
-                      transitionBuilder: (child, animation) => FadeTransition(
-                        opacity: animation,
-                        child: SlideTransition(
-                          position: Tween<Offset>(
-                            begin: const Offset(0.05, 0),
-                            end: Offset.zero,
-                          ).animate(animation),
-                          child: child,
-                        ),
-                      ),
-                      child: switch (_step) {
-                        _Step.email => _EmailStep(
-                            key: const ValueKey('email'),
-                            emailCtrl: _emailCtrl,
-                            busy: _busy,
-                            onSubmit: _sendCode,
-                          ),
-                        _Step.code => _CodeStep(
-                            key: const ValueKey('code'),
-                            email: _emailCtrl.text.trim(),
-                            codeCtrl: _codeCtrl,
-                            busy: _busy,
-                            resendIn: _resendIn,
-                            onVerify: _verifyCode,
-                            onResend: _sendCode,
-                          ),
-                        _Step.password => _PasswordStep(
-                            key: const ValueKey('password'),
-                            passCtrl: _passCtrl,
-                            confirmCtrl: _confirmCtrl,
-                            busy: _busy,
-                            onSubmit: _createAccount,
-                          ),
-                      },
-                    ),
-                  ),
-                  const SizedBox(height: 20),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      const Text(
-                        'Already have an account?',
-                        style: TextStyle(color: Colors.white70),
-                      ),
-                      TextButton(
-                        onPressed: () => context.go('/login'),
-                        child: const Text(
-                          'Sign In',
-                          style: TextStyle(
-                            fontWeight: FontWeight.w600,
-                            color: Colors.white,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
+                ),
               ),
             ),
           ),
@@ -309,7 +320,9 @@ class _StepIndicator extends StatelessWidget {
                       labels[i],
                       style: TextStyle(
                         fontSize: 12,
-                        fontWeight: active ? FontWeight.w600 : FontWeight.normal,
+                        fontWeight: active
+                            ? FontWeight.w600
+                            : FontWeight.normal,
                         color: active
                             ? Colors.white
                             : Colors.white.withValues(alpha: 0.6),
@@ -492,7 +505,11 @@ class _PasswordStep extends StatelessWidget {
           style: TextStyle(color: AppColors.textSubtitle, fontSize: 12),
         ),
         const SizedBox(height: 16),
-        GradientButton(label: 'Create Account', busy: busy, onPressed: onSubmit),
+        GradientButton(
+          label: 'Create Account',
+          busy: busy,
+          onPressed: onSubmit,
+        ),
       ],
     );
   }
