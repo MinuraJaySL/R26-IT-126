@@ -1,6 +1,7 @@
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 import '../models/app_user.dart';
+import '../models/bin_report.dart';
 import '../models/pickup_request.dart';
 import '../providers/auth_provider.dart';
 import '../screens/auth/login_screen.dart';
@@ -14,6 +15,7 @@ import '../screens/resident/report_issue_screen.dart';
 import '../screens/resident/track_truck_screen.dart';
 import '../screens/driver/driver_dashboard.dart';
 import '../screens/driver/driver_bin_reports_screen.dart';
+import '../screens/driver/report_navigation_screen.dart';
 import '../screens/driver/driver_map_screen.dart';
 import '../screens/driver/driver_requests_screen.dart';
 import '../screens/driver/driver_missed_screen.dart';
@@ -102,6 +104,11 @@ GoRouter buildRouter() {
       GoRoute(
         path: '/driver/reports',
         builder: (ctx, _) => const DriverBinReportsScreen(),
+      ),
+      GoRoute(
+        path: '/driver/reports/navigate',
+        builder: (ctx, state) =>
+            ReportNavigationScreen(report: state.extra as BinReport),
       ),
       GoRoute(path: '/admin', builder: (ctx, _) => const AdminDashboardScreen()),
       GoRoute(

@@ -1,10 +1,8 @@
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
+import 'package:go_router/go_router.dart';
 import '../../models/bin_report.dart';
-import '../../providers/auth_provider.dart';
 import '../../services/firestore_service.dart';
-
-const _quickReasons = ['Collected', 'Already Clear', 'False Alarm'];
+import 'resolve_report_dialog.dart';
 
 class DriverBinReportsScreen extends StatelessWidget {
   const DriverBinReportsScreen({super.key});
@@ -39,87 +37,6 @@ class DriverBinReportsScreen extends StatelessWidget {
 
 class _OpenReportsTab extends StatelessWidget {
   const _OpenReportsTab();
-
-  Future<void> _resolve(BuildContext context, BinReport report) async {
-    final controller = TextEditingController();
-    final driverId = context.read<AuthProvider>().user!.uid;
-
-    final note = await showDialog<String>(
-      context: context,
-      builder: (dialogContext) => StatefulBuilder(
-        builder: (dialogContext, setState) => AlertDialog(
-          title: const Text('Resolve This Report'),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text('Resident\'s note:', style: Theme.of(context).textTheme.labelMedium),
-              const SizedBox(height: 4),
-              Text('"${report.note}"', style: const TextStyle(fontStyle: FontStyle.italic)),
-              const SizedBox(height: 16),
-              const Text('Quick reasons:'),
-              const SizedBox(height: 8),
-              Wrap(
-                spacing: 8,
-                runSpacing: 8,
-                children: _quickReasons
-                    .map((r) => ActionChip(
-                          label: Text(r),
-                          onPressed: () => setState(() {
-                            controller.text = r;
-                          }),
-                        ))
-                    .toList(),
-              ),
-              const SizedBox(height: 16),
-              TextField(
-                controller: controller,
-                maxLines: 2,
-                decoration: const InputDecoration(
-                  labelText: 'Your note',
-                  hintText: 'Tap a reason above, or type your own',
-                  border: OutlineInputBorder(),
-                ),
-                onChanged: (_) => setState(() {}),
-              ),
-            ],
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(dialogContext),
-              child: const Text('Cancel'),
-            ),
-            ElevatedButton(
-              onPressed: controller.text.trim().isEmpty
-                  ? null
-                  : () => Navigator.pop(dialogContext, controller.text.trim()),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.red,
-                foregroundColor: Colors.white,
-              ),
-              child: const Text('Resolve'),
-            ),
-          ],
-        ),
-      ),
-    );
-
-    if (note == null || !context.mounted) return;
-    try {
-      await FirestoreService().resolveBinReport(report.id, driverId, note);
-      if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Report resolved'), backgroundColor: Colors.green),
-        );
-      }
-    } catch (e) {
-      if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red),
-        );
-      }
-    }
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -201,17 +118,33 @@ class _OpenReportsTab extends StatelessWidget {
                       ],
                     ),
                     const SizedBox(height: 12),
-                    SizedBox(
-                      width: double.infinity,
-                      child: ElevatedButton.icon(
-                        icon: const Icon(Icons.check_circle_outline),
-                        label: const Text('Resolve'),
-                        onPressed: () => _resolve(context, r),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.red,
-                          foregroundColor: Colors.white,
+                    Row(
+                      children: [
+                        Expanded(
+                          child: OutlinedButton.icon(
+                            icon: const Icon(Icons.directions),
+                            label: const Text('Navigate'),
+                            onPressed: () =>
+                                context.push('/driver/reports/navigate', extra: r),
+                            style: OutlinedButton.styleFrom(
+                              foregroundColor: Colors.red,
+                              side: const BorderSide(color: Colors.red),
+                            ),
+                          ),
                         ),
-                      ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: ElevatedButton.icon(
+                            icon: const Icon(Icons.check_circle_outline),
+                            label: const Text('Resolve'),
+                            onPressed: () => showResolveReportDialog(context, r),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: Colors.red,
+                              foregroundColor: Colors.white,
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
                   ],
                 ),
