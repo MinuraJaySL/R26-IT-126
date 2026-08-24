@@ -39,16 +39,21 @@ export default function PredictionResults({ prediction, truckRequirements, input
       {/* Inputs Summary Banner */}
       {inputsSummary && (
         <AnimatedCard delay={0.05} hover={false}>
-          <div className="flex flex-wrap items-center gap-4 text-sm">
-            <span className="font-semibold" style={{ color: 'var(--text-primary)' }}>Prediction Inputs:</span>
-            <span className="rounded-lg bg-emerald-500/10 px-3 py-1 text-xs font-bold text-emerald-500">
-              {inputsSummary.weekType === 'normal' ? 'Normal Week' : inputsSummary.weekType === 'holiday' ? 'Holiday Week' : 'Festival Week'}
+          <div className="flex flex-wrap items-center gap-3 text-sm">
+            <span className="font-semibold" style={{ color: 'var(--text-primary)' }}>Inputs:</span>
+            {inputsSummary.weekStartDate && (
+              <span className="rounded-lg bg-emerald-500/10 px-3 py-1 text-xs font-bold text-emerald-600 dark:text-emerald-400">
+                Week: {new Date(inputsSummary.weekStartDate).toLocaleDateString('en-LK', { day: 'numeric', month: 'short' })} – {new Date(inputsSummary.weekEndDate).toLocaleDateString('en-LK', { day: 'numeric', month: 'short', year: 'numeric' })}
+              </span>
+            )}
+            <span className="rounded-lg bg-violet-500/10 px-3 py-1 text-xs font-bold text-violet-500">
+              {inputsSummary.weekType === 'normal' ? 'Normal Week' : inputsSummary.weekType === 'holiday' ? 'Holiday / Poya Week' : 'Festival Week'}
             </span>
             <span className="flex items-center gap-1.5 rounded-lg bg-cyan-500/10 px-3 py-1 text-xs font-bold text-cyan-500">
-              <CloudRain size={12} /> {inputsSummary.rainfallMm}mm rainfall
+              <CloudRain size={12} /> {inputsSummary.rainfallMm}mm ({inputsSummary.rainfallSource})
             </span>
             <span className="rounded-lg px-3 py-1 text-xs font-bold" style={{ backgroundColor: 'var(--bg-tertiary)', color: 'var(--text-secondary)' }}>
-              {inputsSummary.monthName} ({inputsSummary.rainfallSource})
+              {inputsSummary.monthName}
             </span>
           </div>
         </AnimatedCard>

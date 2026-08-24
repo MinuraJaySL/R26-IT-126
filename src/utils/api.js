@@ -7,8 +7,9 @@ const API_BASE = 'http://localhost:5000/api';
 
 /**
  * Send prediction request to backend.
- * User only provides weekType — backend auto-fetches rainfall and previous data.
- * @param {{ weekType: string }} inputs
+ * User only provides weekType and optionally weekStartDate.
+ * Backend auto-fetches rainfall and previous data.
+ * @param {{ weekType: string, weekStartDate?: string }} inputs
  * @returns {Promise<{ prediction, composition, truckRequirements, recommendations, weeklyComparison, rainfallForecast, inputsSummary }>}
  */
 export async function predictWasteAPI(inputs) {
@@ -38,21 +39,29 @@ export async function predictWasteAPI(inputs) {
 }
 
 /**
- * Fetch rainfall forecast from backend (which calls Open-Meteo API).
+ * Fetch rainfall forecast from backend for a specific week.
+ * @param {string} [weekStart] - ISO date string (YYYY-MM-DD) for Monday of target week. Defaults to next week.
  * @returns {Promise<Object>}
  */
-export async function fetchRainfallForecast() {
-  const res = await fetch(`${API_BASE}/rainfall-forecast`);
+export async function fetchRainfallForecast(weekStart = null) {
+  const url = weekStart
+    ? `${API_BASE}/rainfall-forecast?weekStart=${weekStart}`
+    : `${API_BASE}/rainfall-forecast`;
+  const res = await fetch(url);
   if (!res.ok) throw new Error('Failed to fetch rainfall forecast');
   return res.json();
 }
 
 /**
  * Fetch previous week's waste data per zone from CSV.
+ * @param {string} [weekStart] - ISO date string (YYYY-MM-DD)
  * @returns {Promise<Object>}
  */
-export async function fetchPreviousWeekData() {
-  const res = await fetch(`${API_BASE}/previous-week`);
+export async function fetchPreviousWeekData(weekStart = null) {
+  const url = weekStart
+    ? `${API_BASE}/previous-week?weekStart=${weekStart}`
+    : `${API_BASE}/previous-week`;
+  const res = await fetch(url);
   if (!res.ok) throw new Error('Failed to fetch previous week data');
   return res.json();
 }
@@ -103,3 +112,21 @@ export async function checkHealth() {
   const res = await fetch(`${API_BASE}/health`);
   return res.json();
 }
+
+/**
+ * Fetch backtest data — actual vs predicted for the held-out test set.
+ * @param {{ zone?: string, limit?: number }} params
+ * @returns {Promise<{ rows, zoneMetrics, summary }>}
+ */
+export async function fetchBacktest(params = {}) {
+  const qs = new URLSearchParams();
+  if (params.zone) qs.set('zone', params.zone);
+  if (params.limit) qs.set('limit', String(params.limit));
+
+  const res = await fetch(`${API_BASE}/backtest?${qs}`);
+  if (!res.ok) throw new Error(`Backtest failed (${res.status})`);
+  const data = await res.json();
+  if (!data.success) throw new Error(data.error || 'Backtest failed');
+  return { rows: data.rows, zoneMetrics: data.zoneMetrics, summary: data.summary };
+}
+

@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   BrainCircuit, SlidersHorizontal, BarChart3, PieChart,
-  Lightbulb, History, DollarSign, Loader2,
+  Lightbulb, History, DollarSign, Loader2, GitCompare,
 } from 'lucide-react';
 import PredictionInputPanel from './PredictionInputPanel';
 import PredictionResults from './PredictionResults';
@@ -10,6 +10,7 @@ import WasteComposition from './WasteComposition';
 import Recommendations from './Recommendations';
 import PredictionHistory from './PredictionHistory';
 import RevenueEstimation from './RevenueEstimation';
+import ModelValidation from './ModelValidation';
 import { predictWasteAPI } from '../../utils/api';
 
 const tabs = [
@@ -19,6 +20,7 @@ const tabs = [
   { id: 'recommendations', label: 'Recommendations', icon: Lightbulb },
   { id: 'history', label: 'History', icon: History },
   { id: 'revenue', label: 'Revenue', icon: DollarSign },
+  { id: 'validation', label: 'Validation', icon: GitCompare },
 ];
 
 export default function WastePrediction() {
@@ -70,6 +72,8 @@ export default function WastePrediction() {
         return <PredictionHistory />;
       case 'revenue':
         return <RevenueEstimation composition={composition} prediction={prediction} />;
+      case 'validation':
+        return <ModelValidation />;
       default:
         return null;
     }
