@@ -1,5 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../models/bin_model.dart';
+import '../models/bin_report.dart';
 import '../models/pickup_request.dart';
 
 class FirestoreService {
@@ -53,6 +54,12 @@ class FirestoreService {
         .update({'status': status.name});
   }
 
+  // Only succeeds within 10 minutes of creation while the request is still
+  // `active` — enforced server-side by firestore.rules, not just here.
+  Future<void> deleteRequest(String id) {
+    return _db.collection('pickupRequests').doc(id).delete();
+  }
+
   Stream<List<PickupRequest>> watchMissedRequests() {
     return _db
         .collection('pickupRequests')
@@ -62,6 +69,61 @@ class FirestoreService {
       final list = snap.docs.map(PickupRequest.fromFirestore).toList();
       list.sort((a, b) => b.createdAt.compareTo(a.createdAt));
       return list;
+    });
+  }
+
+  // Bin reports (resident-submitted overflow/damage reports)
+  Future<void> createBinReport(BinReport report) {
+    return _db.collection('binReports').doc(report.id).set(report.toMap());
+  }
+
+  Stream<List<BinReport>> watchMyBinReports(String residentId) {
+    return _db
+        .collection('binReports')
+        .where('residentId', isEqualTo: residentId)
+        .snapshots()
+        .map((snap) {
+      final list = snap.docs.map(BinReport.fromFirestore).toList();
+      list.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+      return list;
+    });
+  }
+
+  Stream<List<BinReport>> watchOpenBinReports() {
+    return _db
+        .collection('binReports')
+        .where('status', isEqualTo: 'open')
+        .snapshots()
+        .map((snap) {
+      final list = snap.docs.map(BinReport.fromFirestore).toList();
+      list.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+      return list;
+    });
+  }
+
+  Stream<List<BinReport>> watchResolvedBinReports() {
+    return _db
+        .collection('binReports')
+        .where('status', isEqualTo: 'resolved')
+        .snapshots()
+        .map((snap) {
+      final list = snap.docs.map(BinReport.fromFirestore).toList();
+      list.sort((a, b) =>
+          (b.resolvedAt ?? b.createdAt).compareTo(a.resolvedAt ?? a.createdAt));
+      return list;
+    });
+  }
+
+  Future<void> resolveBinReport(
+    String id,
+    String driverId,
+    String resolutionNote,
+  ) {
+    return _db.collection('binReports').doc(id).update({
+      'status': 'resolved',
+      'resolvedBy': driverId,
+      'resolutionNote': resolutionNote,
+      'resolvedAt': FieldValue.serverTimestamp(),
     });
   }
 

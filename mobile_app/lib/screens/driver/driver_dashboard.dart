@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
+import '../../models/bin_report.dart';
 import '../../providers/auth_provider.dart';
+import '../../services/firestore_service.dart';
 
 class DriverDashboard extends StatefulWidget {
   const DriverDashboard({super.key});
@@ -79,6 +81,21 @@ class _DriverDashboardState extends State<DriverDashboard> {
               color: Colors.orange,
               onTap: () => context.push('/driver/missed'),
             ),
+            const SizedBox(height: 16),
+            StreamBuilder<List<BinReport>>(
+              stream: FirestoreService().watchOpenBinReports(),
+              builder: (context, snap) {
+                final openCount = snap.data?.length ?? 0;
+                return _DashCard(
+                  icon: Icons.report_problem_outlined,
+                  title: 'Critical Reports',
+                  subtitle: 'Resident-reported bin problems',
+                  color: Colors.red,
+                  badgeCount: openCount,
+                  onTap: () => context.push('/driver/reports'),
+                );
+              },
+            ),
           ],
         ),
       ),
@@ -92,6 +109,7 @@ class _DashCard extends StatelessWidget {
   final String subtitle;
   final Color color;
   final VoidCallback onTap;
+  final int badgeCount;
 
   const _DashCard({
     required this.icon,
@@ -99,6 +117,7 @@ class _DashCard extends StatelessWidget {
     required this.subtitle,
     required this.color,
     required this.onTap,
+    this.badgeCount = 0,
   });
 
   @override
@@ -113,7 +132,27 @@ class _DashCard extends StatelessWidget {
         ),
         title: Text(title, style: const TextStyle(fontWeight: FontWeight.bold)),
         subtitle: Text(subtitle),
-        trailing: const Icon(Icons.chevron_right),
+        trailing: badgeCount > 0
+            ? Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                    decoration: BoxDecoration(
+                      color: Colors.red,
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Text(
+                      '$badgeCount',
+                      style: const TextStyle(
+                          color: Colors.white, fontWeight: FontWeight.bold, fontSize: 12),
+                    ),
+                  ),
+                  const SizedBox(width: 6),
+                  const Icon(Icons.chevron_right),
+                ],
+              )
+            : const Icon(Icons.chevron_right),
         onTap: onTap,
       ),
     );
