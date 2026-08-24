@@ -20,7 +20,11 @@ const tabs = [
   { id: 'recommendations', label: 'Recommendations', icon: Lightbulb },
   { id: 'history', label: 'History', icon: History },
   { id: 'revenue', label: 'Revenue', icon: DollarSign },
+<<<<<<< HEAD
   // { id: 'validation', label: 'Validation', icon: GitCompare },
+=======
+  { id: 'validation', label: 'Validation', icon: GitCompare },
+>>>>>>> c70ba2b (Model improvements)
 ];
 
 export default function WastePrediction() {
