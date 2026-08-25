@@ -16,6 +16,7 @@ import '../screens/resident/track_truck_screen.dart';
 import '../screens/driver/driver_dashboard.dart';
 import '../screens/driver/driver_bin_reports_screen.dart';
 import '../screens/driver/report_navigation_screen.dart';
+import '../screens/driver/missed_navigation_screen.dart';
 import '../screens/driver/driver_map_screen.dart';
 import '../screens/driver/driver_requests_screen.dart';
 import '../screens/driver/driver_missed_screen.dart';
@@ -100,6 +101,11 @@ GoRouter buildRouter() {
       GoRoute(
         path: '/driver/missed',
         builder: (ctx, _) => const DriverMissedScreen(),
+      ),
+      GoRoute(
+        path: '/driver/missed/navigate',
+        builder: (ctx, state) =>
+            MissedNavigationScreen(request: state.extra as PickupRequest),
       ),
       GoRoute(
         path: '/driver/reports',

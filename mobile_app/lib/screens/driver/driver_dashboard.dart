@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 import '../../models/bin_report.dart';
+import '../../models/pickup_request.dart';
 import '../../providers/auth_provider.dart';
 import '../../services/firestore_service.dart';
 
@@ -74,12 +75,19 @@ class _DriverDashboardState extends State<DriverDashboard> {
               onTap: () => context.push('/driver/requests'),
             ),
             const SizedBox(height: 16),
-            _DashCard(
-              icon: Icons.warning_amber_rounded,
-              title: 'Missed Requests',
-              subtitle: 'View pickups residents marked as missed',
-              color: Colors.orange,
-              onTap: () => context.push('/driver/missed'),
+            StreamBuilder<List<PickupRequest>>(
+              stream: FirestoreService().watchMissedRequests(),
+              builder: (context, snap) {
+                final missedCount = snap.data?.length ?? 0;
+                return _DashCard(
+                  icon: Icons.warning_amber_rounded,
+                  title: 'Missed Requests',
+                  subtitle: 'View pickups residents marked as missed',
+                  color: Colors.orange,
+                  badgeCount: missedCount,
+                  onTap: () => context.push('/driver/missed'),
+                );
+              },
             ),
             const SizedBox(height: 16),
             StreamBuilder<List<BinReport>>(
