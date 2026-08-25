@@ -130,7 +130,7 @@ class _ResidentDashboardState extends State<ResidentDashboard> {
           ),
         ],
       ),
-      body: Padding(
+      body: SingleChildScrollView(
         padding: const EdgeInsets.all(24),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
