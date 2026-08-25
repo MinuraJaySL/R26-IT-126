@@ -55,7 +55,7 @@ class _TrackTruckScreenState extends State<TrackTruckScreen> {
   @override
   void initState() {
     super.initState();
-    _driverLocationsSub = _fs.watchAllDriverLocations().listen((drivers) {
+    _driverLocationsSub = _fs.watchPickupModeDriverLocations().listen((drivers) {
       if (!mounted) return;
       setState(() => _allDrivers = drivers);
       _updateTracking();

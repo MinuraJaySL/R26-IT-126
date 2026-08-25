@@ -128,10 +128,19 @@ class FirestoreService {
   }
 
   // Driver GPS
-  Future<void> uploadDriverLocation(String driverId, double lat, double lng) {
+  // mode distinguishes what the driver is currently doing — 'bins' (Bin
+  // Priority Map) or 'pickups' (pickup request route) — so residents can be
+  // shown only drivers actually working pickup requests, not bin collection.
+  Future<void> uploadDriverLocation(
+    String driverId,
+    double lat,
+    double lng, {
+    required String mode,
+  }) {
     return _db.collection('driverLocations').doc(driverId).set({
       'lat': lat,
       'lng': lng,
+      'mode': mode,
       'updatedAt': FieldValue.serverTimestamp(),
     });
   }
@@ -147,8 +156,17 @@ class FirestoreService {
   // All drivers currently broadcasting a live position (for resident-side
   // truck tracking — residents don't know which driver is "theirs"). Includes
   // updatedAt so the UI can filter out stale, never-cleaned-up entries.
-  Stream<List<Map<String, dynamic>>> watchAllDriverLocations() {
-    return _db.collection('driverLocations').snapshots().map(
+  // Residents tracking a truck should only ever see drivers currently
+  // working pickup requests, not ones out doing bin collection — a driver
+  // detouring for a resident's waste is exactly the delay bin collection
+  // can't afford. Docs from before `mode` existed simply won't match this
+  // filter, which is the correct behavior (they're stale anyway).
+  Stream<List<Map<String, dynamic>>> watchPickupModeDriverLocations() {
+    return _db
+        .collection('driverLocations')
+        .where('mode', isEqualTo: 'pickups')
+        .snapshots()
+        .map(
           (snap) => snap.docs.map((doc) {
             final d = doc.data();
             return {

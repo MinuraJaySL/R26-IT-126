@@ -18,6 +18,7 @@ import '../screens/driver/driver_bin_reports_screen.dart';
 import '../screens/driver/report_navigation_screen.dart';
 import '../screens/driver/missed_navigation_screen.dart';
 import '../screens/driver/driver_map_screen.dart';
+import '../screens/driver/driver_pickup_route_screen.dart';
 import '../screens/driver/driver_requests_screen.dart';
 import '../screens/driver/driver_missed_screen.dart';
 import '../screens/admin/admin_dashboard_screen.dart';
@@ -97,6 +98,10 @@ GoRouter buildRouter() {
       GoRoute(
         path: '/driver/requests',
         builder: (ctx, _) => const DriverRequestsScreen(),
+      ),
+      GoRoute(
+        path: '/driver/pickup-route',
+        builder: (ctx, _) => const DriverPickupRouteScreen(),
       ),
       GoRoute(
         path: '/driver/missed',
