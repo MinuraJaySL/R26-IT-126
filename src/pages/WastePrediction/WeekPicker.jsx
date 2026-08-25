@@ -117,11 +117,15 @@ function detectWeekType(monday) {
 
 function getPeriodBadge(monday) {
   const dateStr = toYMD(monday);
+  const todayStr = toYMD(new Date());
   if (dateStr < '2025-05-19' && dateStr >= '2023-01-01') {
     return { label: 'Training Set Data (2023–2025)', color: '#06b6d4', type: 'train' };
   }
   if (dateStr >= '2025-05-19' && dateStr <= '2025-12-31') {
     return { label: 'Held-Out Test Set (Validation)', color: '#10b981', type: 'test' };
+  }
+  if (dateStr < todayStr) {
+    return { label: 'Recorded Weather Data (2026)', color: '#06b6d4', type: 'history' };
   }
   return { label: 'Live / Future Forecast', color: '#8b5cf6', type: 'future' };
 }

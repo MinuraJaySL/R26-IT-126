@@ -43,12 +43,12 @@ function toISO(date) {
   return date.toISOString().slice(0, 10);
 }
 
-// Check if week is within Open-Meteo forecast window (16 days)
+// Check if week is in the near future (0 to 15 days ahead)
 function isWithinForecast(monday) {
   const today = new Date();
   today.setHours(0, 0, 0, 0);
   const days = Math.floor((monday - today) / 86400000);
-  return days <= 15;
+  return days >= 0 && days <= 15;
 }
 
 export default function PredictionInputPanel({ onPredict, loading }) {

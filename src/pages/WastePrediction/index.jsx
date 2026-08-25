@@ -16,7 +16,7 @@ import { predictWasteAPI } from '../../utils/api';
 const tabs = [
   { id: 'predict', label: 'Predict', icon: SlidersHorizontal },
   { id: 'results', label: 'Results', icon: BarChart3 },
-  { id: 'composition', label: 'Composition', icon: PieChart },
+  // { id: 'composition', label: 'Composition', icon: PieChart },
   { id: 'recommendations', label: 'Recommendations', icon: Lightbulb },
   { id: 'history', label: 'History', icon: History },
   { id: 'revenue', label: 'Revenue', icon: DollarSign },
