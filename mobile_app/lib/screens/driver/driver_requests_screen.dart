@@ -1,7 +1,5 @@
-import 'dart:async';
-import 'dart:math';
 import 'package:flutter/material.dart';
-import 'package:geolocator/geolocator.dart';
+import 'package:go_router/go_router.dart';
 import '../../models/pickup_request.dart';
 import '../../services/firestore_service.dart';
 
@@ -14,93 +12,11 @@ class DriverRequestsScreen extends StatefulWidget {
 
 class _DriverRequestsScreenState extends State<DriverRequestsScreen> {
   final _fs = FirestoreService();
-
-  StreamSubscription<Position>? _gpsSub;
-  Timer? _pollTimer;
   List<PickupRequest> _requests = [];
-  final Set<String> _arrivedIds = {};
-
-  // 300m threshold — accounts for web browser GPS inaccuracy
-  static const double _thresholdM = 300;
-
-  @override
-  void initState() {
-    super.initState();
-    _startProximityTracking();
-  }
-
-  @override
-  void dispose() {
-    _gpsSub?.cancel();
-    _pollTimer?.cancel();
-    super.dispose();
-  }
-
-  void _startProximityTracking() async {
-    // Check permission first
-    final permission = await Geolocator.checkPermission();
-    if (permission == LocationPermission.denied) {
-      await Geolocator.requestPermission();
-    }
-
-    // GPS stream — fires on position change
-    _gpsSub = Geolocator.getPositionStream(
-      locationSettings: const LocationSettings(
-        accuracy: LocationAccuracy.high,
-        distanceFilter: 0,
-      ),
-    ).listen((pos) => _checkProximity(pos.latitude, pos.longitude));
-
-    // Periodic fallback — checks every 10s in case stream is slow on web
-    _pollTimer = Timer.periodic(const Duration(seconds: 10), (_) async {
-      try {
-        final pos = await Geolocator.getCurrentPosition(
-          locationSettings:
-              const LocationSettings(accuracy: LocationAccuracy.high),
-        );
-        _checkProximity(pos.latitude, pos.longitude);
-      } catch (_) {}
-    });
-  }
-
-  double _haversine(double lat1, double lng1, double lat2, double lng2) {
-    const r = 6371000.0;
-    final dLat = (lat2 - lat1) * pi / 180;
-    final dLng = (lng2 - lng1) * pi / 180;
-    final a = sin(dLat / 2) * sin(dLat / 2) +
-        cos(lat1 * pi / 180) *
-            cos(lat2 * pi / 180) *
-            sin(dLng / 2) *
-            sin(dLng / 2);
-    return r * 2 * atan2(sqrt(a), sqrt(1 - a));
-  }
-
-  void _checkProximity(double lat, double lng) {
-    for (final req in _requests) {
-      if (_arrivedIds.contains(req.id)) continue;
-      if (req.status != RequestStatus.active) continue;
-      final dist = _haversine(lat, lng, req.lat, req.lng);
-      if (dist <= _thresholdM) {
-        _arrivedIds.add(req.id);
-        _fs.updateRequestStatus(req.id, RequestStatus.arrived);
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(
-                  'Arrived at pickup point! (${dist.toStringAsFixed(0)} m away)'),
-              backgroundColor: Colors.green,
-              duration: const Duration(seconds: 4),
-            ),
-          );
-        }
-      }
-    }
-  }
 
   Future<void> _manualArrive(PickupRequest req) async {
     try {
       await _fs.updateRequestStatus(req.id, RequestStatus.arrived);
-      _arrivedIds.add(req.id);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
@@ -140,15 +56,6 @@ class _DriverRequestsScreenState extends State<DriverRequestsScreen> {
         title: const Text('Pickup Requests'),
         backgroundColor: Colors.indigo,
         foregroundColor: Colors.white,
-        actions: [
-          Padding(
-            padding: const EdgeInsets.only(right: 12),
-            child: Tooltip(
-              message: 'GPS proximity active (300m)',
-              child: const Icon(Icons.gps_fixed, color: Colors.greenAccent),
-            ),
-          ),
-        ],
       ),
       body: StreamBuilder<List<PickupRequest>>(
         stream: _fs.watchActiveRequests(),
@@ -179,22 +86,6 @@ class _DriverRequestsScreenState extends State<DriverRequestsScreen> {
           }
           return Column(
             children: [
-              Container(
-                width: double.infinity,
-                color: Colors.indigo.withValues(alpha: 0.08),
-                padding: const EdgeInsets.symmetric(
-                    horizontal: 16, vertical: 10),
-                child: const Row(
-                  children: [
-                    Icon(Icons.gps_fixed, size: 14, color: Colors.indigo),
-                    SizedBox(width: 6),
-                    Text(
-                      'GPS active — auto-notifies resident when within 300m',
-                      style: TextStyle(fontSize: 12, color: Colors.indigo),
-                    ),
-                  ],
-                ),
-              ),
               Expanded(
                 child: ListView.separated(
                   padding: const EdgeInsets.all(16),
@@ -210,6 +101,13 @@ class _DriverRequestsScreenState extends State<DriverRequestsScreen> {
             ],
           );
         },
+      ),
+      floatingActionButton: FloatingActionButton.extended(
+        backgroundColor: Colors.green,
+        foregroundColor: Colors.white,
+        icon: const Icon(Icons.alt_route),
+        label: const Text('Pickup Route'),
+        onPressed: () => context.push('/driver/pickup-route'),
       ),
     );
   }

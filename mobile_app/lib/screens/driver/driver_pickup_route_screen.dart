@@ -4,24 +4,27 @@ import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:provider/provider.dart';
-import '../../models/bin_model.dart';
+import '../../models/pickup_request.dart';
 import '../../providers/auth_provider.dart';
 import '../../services/firestore_service.dart';
 import '../../services/location_service.dart';
 import '../../services/road_route_service.dart';
-import '../../services/route_service.dart';
 
-class DriverMapScreen extends StatefulWidget {
-  const DriverMapScreen({super.key});
+/// Live route through active pickup requests only — the pickup-request
+/// counterpart to the Bin Priority Map, deliberately kept separate so a
+/// driver doing resident pickups is never the reason an urgent bin overflows
+/// (and vice versa). Uploads the driver's position tagged mode: 'pickups',
+/// which is what makes them visible to residents on Track Truck.
+class DriverPickupRouteScreen extends StatefulWidget {
+  const DriverPickupRouteScreen({super.key});
 
   @override
-  State<DriverMapScreen> createState() => _DriverMapScreenState();
+  State<DriverPickupRouteScreen> createState() => _DriverPickupRouteScreenState();
 }
 
-class _DriverMapScreenState extends State<DriverMapScreen> {
+class _DriverPickupRouteScreenState extends State<DriverPickupRouteScreen> {
   final _fs = FirestoreService();
   final _locationService = LocationService();
-  final _routeService = RouteService();
   final _roadRouteService = RoadRouteService();
   final _mapController = MapController();
 
@@ -29,20 +32,19 @@ class _DriverMapScreenState extends State<DriverMapScreen> {
 
   LatLng _driverPos = const LatLng(6.9069, 79.9723);
   bool _tripActive = false;
-  List<SmartBin> _bins = [];
-  List<SmartBin> _suggestedRoute = [];
+  List<PickupRequest> _activeRequests = [];
+  List<PickupRequest> _suggestedRoute = [];
   bool _showRoute = false;
   bool _loadingRoute = false;
   List<LatLng> _roadPoints = [];
 
-  // Throttle how often we push the driver's position to Firestore — the raw
-  // GPS stream can fire far more often than that, and hammering one document
-  // with unthrottled writes made updates lag badly for anyone watching it.
+  // IDs we've already triggered arrival for — avoid duplicate alerts
+  final Set<String> _arrivedIds = {};
+  static const double _arrivalThresholdM = 300;
+
   DateTime? _lastLocationUploadAt;
   static const Duration _locationUploadInterval = Duration(seconds: 3);
 
-  // Auto-reroute when the driver strays this far from the displayed route
-  // (e.g. takes a different road) — mirrors Google Maps' off-route recalc.
   DateTime? _lastRerouteAt;
   static const double _offRouteThresholdM = 150;
   static const Duration _rerouteCooldown = Duration(seconds: 15);
@@ -76,7 +78,7 @@ class _DriverMapScreenState extends State<DriverMapScreen> {
   }
 
   void _checkOffRoute(double lat, double lng) {
-    if (!_showRoute || _loadingRoute || _bins.isEmpty) return;
+    if (!_showRoute || _loadingRoute || _activeRequests.isEmpty) return;
     final routePoints = _buildRoutePoints();
     if (routePoints.isEmpty) return;
 
@@ -88,6 +90,26 @@ class _DriverMapScreenState extends State<DriverMapScreen> {
     if (_minDistanceToRoute(lat, lng, routePoints) > _offRouteThresholdM) {
       _lastRerouteAt = now;
       _suggestRoute();
+    }
+  }
+
+  void _checkProximity(double lat, double lng) {
+    for (final req in _activeRequests) {
+      if (_arrivedIds.contains(req.id)) continue;
+      final dist = _haversine(lat, lng, req.lat, req.lng);
+      if (dist <= _arrivalThresholdM) {
+        _arrivedIds.add(req.id);
+        _fs.updateRequestStatus(req.id, RequestStatus.arrived);
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Arrived at pickup point (${dist.toStringAsFixed(0)} m)'),
+              backgroundColor: Colors.green,
+              duration: const Duration(seconds: 3),
+            ),
+          );
+        }
+      }
     }
   }
 
@@ -104,10 +126,11 @@ class _DriverMapScreenState extends State<DriverMapScreen> {
           now.difference(_lastLocationUploadAt!) >= _locationUploadInterval) {
         _lastLocationUploadAt = now;
         _fs
-            .uploadDriverLocation(driverId, pos.latitude, pos.longitude, mode: 'bins')
+            .uploadDriverLocation(driverId, pos.latitude, pos.longitude, mode: 'pickups')
             .catchError((e) => debugPrint('Failed to upload driver location: $e'));
       }
 
+      _checkProximity(pos.latitude, pos.longitude);
       _checkOffRoute(pos.latitude, pos.longitude);
     });
   }
@@ -128,9 +151,36 @@ class _DriverMapScreenState extends State<DriverMapScreen> {
     });
   }
 
+  // Greedy nearest-neighbour — same heuristic as RouteService, just without
+  // bin priority tiers since a pickup request has no such grouping.
+  List<PickupRequest> _nearestNeighbourOrder(
+      List<PickupRequest> requests, double startLat, double startLng) {
+    if (requests.isEmpty) return [];
+    final remaining = List<PickupRequest>.from(requests);
+    final ordered = <PickupRequest>[];
+    double curLat = startLat, curLng = startLng;
+
+    while (remaining.isNotEmpty) {
+      PickupRequest nearest = remaining[0];
+      double nearestDist = _haversine(curLat, curLng, nearest.lat, nearest.lng);
+      for (int i = 1; i < remaining.length; i++) {
+        final d = _haversine(curLat, curLng, remaining[i].lat, remaining[i].lng);
+        if (d < nearestDist) {
+          nearestDist = d;
+          nearest = remaining[i];
+        }
+      }
+      remaining.remove(nearest);
+      ordered.add(nearest);
+      curLat = nearest.lat;
+      curLng = nearest.lng;
+    }
+    return ordered;
+  }
+
   Future<void> _suggestRoute() async {
-    final ordered = _routeService.suggestRoute(
-      _bins,
+    final ordered = _nearestNeighbourOrder(
+      _activeRequests,
       _driverPos.latitude,
       _driverPos.longitude,
     );
@@ -141,13 +191,11 @@ class _DriverMapScreenState extends State<DriverMapScreen> {
       _roadPoints = [];
     });
 
-    // Build waypoints: driver → bins in priority order
     final waypoints = [
       _driverPos,
-      ...ordered.map((b) => LatLng(b.lat, b.lng)),
+      ...ordered.map((r) => LatLng(r.lat, r.lng)),
     ];
 
-    // Fetch real road geometry from OSRM
     final road = await _roadRouteService.getRoadRoute(waypoints);
     if (mounted) {
       setState(() {
@@ -155,25 +203,10 @@ class _DriverMapScreenState extends State<DriverMapScreen> {
         _loadingRoute = false;
       });
     }
-
-    final dist = _routeService.totalDistance(
-      ordered,
-      _driverPos.latitude,
-      _driverPos.longitude,
-    );
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            '${ordered.length} stops — total ~${(dist / 1000).toStringAsFixed(2)} km',
-          ),
-        ),
-      );
-    }
   }
 
-  void _showBinDetails(SmartBin bin) {
-    final routeIndex = _showRoute ? _suggestedRoute.indexOf(bin) : -1;
+  void _showRequestDetails(PickupRequest req) {
+    final routeIndex = _showRoute ? _suggestedRoute.indexOf(req) : -1;
     showModalBottomSheet(
       context: context,
       builder: (_) => Padding(
@@ -182,94 +215,65 @@ class _DriverMapScreenState extends State<DriverMapScreen> {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Row(
+            const Row(
               children: [
-                Icon(Icons.delete_outline,
-                    color: _priorityColor(bin.priority), size: 28),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Text(
-                    bin.label,
-                    style: TextStyle(
-                      fontWeight: FontWeight.bold,
-                      fontSize: 18,
-                      color: _priorityColor(bin.priority),
-                    ),
-                  ),
+                Icon(Icons.flag, color: Colors.green, size: 28),
+                SizedBox(width: 8),
+                Text(
+                  'Pickup Request',
+                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18, color: Colors.green),
                 ),
               ],
             ),
-            const SizedBox(height: 4),
-            Text(
-              'Priority: ${bin.priority.name.toUpperCase()}',
-              style: TextStyle(
-                  color: _priorityColor(bin.priority), fontSize: 13),
-            ),
             const SizedBox(height: 12),
-            _DetailRow('Fill level', '${bin.fillPercent.toStringAsFixed(0)}%'),
-            _DetailRow('Methane', bin.methaneStatus.name.toUpperCase()),
-            _DetailRow('Last updated', _formatTime(bin.lastUpdated)),
-            if (routeIndex >= 0)
-              _DetailRow('Route stop', '#${routeIndex + 1}'),
+            Text(
+              'Location: ${req.lat.toStringAsFixed(5)}, ${req.lng.toStringAsFixed(5)}',
+              style: const TextStyle(fontSize: 14),
+            ),
+            if (routeIndex >= 0) ...[
+              const SizedBox(height: 4),
+              Text('Route stop: #${routeIndex + 1}',
+                  style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14)),
+            ],
           ],
         ),
       ),
     );
   }
 
-  Color _priorityColor(BinPriority p) {
-    switch (p) {
-      case BinPriority.red:
-        return Colors.red;
-      case BinPriority.yellow:
-        return Colors.amber;
-      case BinPriority.green:
-        return Colors.green;
-    }
-  }
-
-  List<Marker> _buildMarkers(List<SmartBin> bins) {
+  List<Marker> _buildMarkers() {
     final markers = <Marker>[
       Marker(
         point: _driverPos,
         width: 44,
         height: 44,
-        child: const Icon(Icons.local_shipping,
-            color: Colors.indigo, size: 36),
+        child: const Icon(Icons.local_shipping, color: Colors.indigo, size: 36),
       ),
     ];
 
-    for (int i = 0; i < bins.length; i++) {
-      final bin = bins[i];
-      final color = _priorityColor(bin.priority);
-      final routeIndex = _showRoute ? _suggestedRoute.indexOf(bin) : -1;
+    for (final req in _activeRequests) {
+      final routeIndex = _showRoute ? _suggestedRoute.indexOf(req) : -1;
       markers.add(
         Marker(
-          point: LatLng(bin.lat, bin.lng),
-          width: 44,
-          height: 52,
+          point: LatLng(req.lat, req.lng),
+          width: 40,
+          height: 48,
           child: GestureDetector(
-            onTap: () => _showBinDetails(bin),
+            onTap: () => _showRequestDetails(req),
             child: Stack(
               alignment: Alignment.topCenter,
               children: [
-                Icon(Icons.location_pin, color: color, size: 44),
+                const Icon(Icons.flag, color: Colors.green, size: 36),
                 if (routeIndex >= 0)
                   Positioned(
-                    top: 2,
+                    top: 0,
                     child: Container(
                       padding: const EdgeInsets.all(2),
-                      decoration: const BoxDecoration(
-                        color: Colors.white,
-                        shape: BoxShape.circle,
-                      ),
+                      decoration: const BoxDecoration(color: Colors.white, shape: BoxShape.circle),
                       child: Text(
                         '${routeIndex + 1}',
-                        style: TextStyle(
-                          fontSize: 10,
-                          fontWeight: FontWeight.bold,
-                          color: color,
-                        ),
+                        style: const TextStyle(
+                            fontSize: 10, fontWeight: FontWeight.bold, color: Colors.green),
                       ),
                     ),
                   ),
@@ -284,16 +288,13 @@ class _DriverMapScreenState extends State<DriverMapScreen> {
 
   List<LatLng> _buildRoutePoints() {
     if (!_showRoute || _suggestedRoute.isEmpty) return [];
-    // Use road geometry if available, otherwise straight lines as fallback
     if (_roadPoints.isNotEmpty) return _roadPoints;
     return [
       _driverPos,
-      ..._suggestedRoute.map((b) => LatLng(b.lat, b.lng)),
+      ..._suggestedRoute.map((r) => LatLng(r.lat, r.lng)),
     ];
   }
 
-  // Trims the already-driven portion off the front of the route so only the
-  // remaining path ahead of the driver is drawn — mirrors turn-by-turn nav.
   List<LatLng> _visibleRoutePoints(List<LatLng> fullRoute) {
     if (fullRoute.isEmpty) return fullRoute;
     int nearestIndex = 0;
@@ -309,39 +310,34 @@ class _DriverMapScreenState extends State<DriverMapScreen> {
     return fullRoute.sublist(nearestIndex);
   }
 
-  String _formatTime(DateTime dt) {
-    return '${dt.day}/${dt.month} ${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}';
-  }
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Bin Priority Map'),
-        backgroundColor: Colors.indigo,
+        title: const Text('Pickup Requests Route'),
+        backgroundColor: Colors.green,
         foregroundColor: Colors.white,
         actions: [
           if (!_tripActive)
             TextButton.icon(
               icon: const Icon(Icons.play_arrow, color: Colors.white),
-              label: const Text('Start Trip',
-                  style: TextStyle(color: Colors.white)),
+              label: const Text('Start Trip', style: TextStyle(color: Colors.white)),
               onPressed: _startTrip,
             )
           else
             TextButton.icon(
               icon: const Icon(Icons.stop, color: Colors.redAccent),
-              label: const Text('End Trip',
-                  style: TextStyle(color: Colors.white)),
+              label: const Text('End Trip', style: TextStyle(color: Colors.white)),
               onPressed: _stopTrip,
             ),
         ],
       ),
-      body: StreamBuilder<List<SmartBin>>(
-        stream: _fs.watchBins(),
+      body: StreamBuilder<List<PickupRequest>>(
+        stream: _fs.watchActiveRequests(),
         builder: (context, snap) {
-          _bins = snap.data ?? [];
-          final markers = _buildMarkers(_bins);
+          _activeRequests =
+              (snap.data ?? []).where((r) => r.status == RequestStatus.active).toList();
+          final markers = _buildMarkers();
           final routePoints = _visibleRoutePoints(_buildRoutePoints());
 
           return Stack(
@@ -354,8 +350,7 @@ class _DriverMapScreenState extends State<DriverMapScreen> {
                 ),
                 children: [
                   TileLayer(
-                    urlTemplate:
-                        'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+                    urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
                     userAgentPackageName: 'com.r26it126.mobile_app',
                   ),
                   if (routePoints.isNotEmpty)
@@ -364,14 +359,13 @@ class _DriverMapScreenState extends State<DriverMapScreen> {
                         Polyline(
                           points: routePoints,
                           strokeWidth: 3,
-                          color: Colors.indigo.withValues(alpha: 0.7),
+                          color: Colors.green.withValues(alpha: 0.7),
                         ),
                       ],
                     ),
                   MarkerLayer(markers: markers),
                 ],
               ),
-              // Legend
               Positioned(
                 top: 12,
                 left: 12,
@@ -380,24 +374,18 @@ class _DriverMapScreenState extends State<DriverMapScreen> {
                   decoration: BoxDecoration(
                     color: Colors.white,
                     borderRadius: BorderRadius.circular(8),
-                    boxShadow: const [
-                      BoxShadow(blurRadius: 4, color: Colors.black26)
-                    ],
+                    boxShadow: const [BoxShadow(blurRadius: 4, color: Colors.black26)],
                   ),
                   child: const Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      _LegendItem(color: Colors.red, label: 'Urgent (Red)'),
+                      _LegendItem(icon: Icons.flag, color: Colors.green, label: 'Pickup Request'),
                       _LegendItem(
-                          color: Colors.amber, label: 'Medium (Yellow)'),
-                      _LegendItem(color: Colors.green, label: 'Low (Green)'),
-                      _LegendItem(
-                          color: Colors.indigo, label: 'Driver (You)'),
+                          icon: Icons.local_shipping, color: Colors.indigo, label: 'Driver (You)'),
                     ],
                   ),
                 ),
               ),
-              // Route button
               Positioned(
                 bottom: 24,
                 left: 16,
@@ -407,8 +395,7 @@ class _DriverMapScreenState extends State<DriverMapScreen> {
                       ? const SizedBox(
                           width: 18,
                           height: 18,
-                          child: CircularProgressIndicator(
-                              strokeWidth: 2, color: Colors.white),
+                          child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
                         )
                       : const Icon(Icons.alt_route),
                   label: Text(_loadingRoute
@@ -416,9 +403,10 @@ class _DriverMapScreenState extends State<DriverMapScreen> {
                       : _showRoute
                           ? 'Route Active (${_suggestedRoute.length} stops)'
                           : 'Suggest Route'),
-                  onPressed: (_bins.isEmpty || _loadingRoute) ? null : _suggestRoute,
+                  onPressed:
+                      (_activeRequests.isEmpty || _loadingRoute) ? null : _suggestRoute,
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.indigo,
+                    backgroundColor: Colors.green,
                     foregroundColor: Colors.white,
                     padding: const EdgeInsets.symmetric(vertical: 14),
                   ),
@@ -432,33 +420,12 @@ class _DriverMapScreenState extends State<DriverMapScreen> {
   }
 }
 
-class _DetailRow extends StatelessWidget {
-  final String label;
-  final String value;
-  const _DetailRow(this.label, this.value);
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 4),
-      child: Row(
-        children: [
-          Text('$label: ',
-              style: const TextStyle(color: Colors.grey, fontSize: 14)),
-          Text(value,
-              style: const TextStyle(
-                  fontWeight: FontWeight.w600, fontSize: 14)),
-        ],
-      ),
-    );
-  }
-}
-
 class _LegendItem extends StatelessWidget {
+  final IconData icon;
   final Color color;
   final String label;
 
-  const _LegendItem({required this.color, required this.label});
+  const _LegendItem({required this.icon, required this.color, required this.label});
 
   @override
   Widget build(BuildContext context) {
@@ -467,7 +434,7 @@ class _LegendItem extends StatelessWidget {
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(Icons.circle, color: color, size: 12),
+          Icon(icon, color: color, size: 12),
           const SizedBox(width: 6),
           Text(label, style: const TextStyle(fontSize: 12)),
         ],
