@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import '../models/app_user.dart';
 import '../services/auth_service.dart';
 import '../services/notification_service.dart';
@@ -109,6 +110,27 @@ class AuthProvider extends ChangeNotifier {
       _error = 'Could not save your profile. Please try again.';
       notifyListeners();
       return false;
+    }
+  }
+
+  /// Returns true when the request went through cleanly enough to show the
+  /// "check your inbox" message — including when the email isn't actually
+  /// registered, so we never reveal that to the caller (only a genuinely
+  /// malformed email address is reported back as an error).
+  Future<bool> sendPasswordResetEmail(String email) async {
+    _error = null;
+    try {
+      await _authService.sendPasswordResetEmail(email);
+      return true;
+    } on FirebaseAuthException catch (e) {
+      if (e.code == 'invalid-email') {
+        _error = 'Please enter a valid email address.';
+        notifyListeners();
+        return false;
+      }
+      return true;
+    } catch (_) {
+      return true;
     }
   }
 

@@ -101,5 +101,12 @@ class AuthService {
     return AppUser.fromMap(uid, doc.data()!);
   }
 
+  /// Firebase's own built-in reset flow — sends the user an email with a
+  /// link to a Firebase-hosted page where they set a new password. Nothing
+  /// sensitive passes through our own backend for this.
+  Future<void> sendPasswordResetEmail(String email) {
+    return _auth.sendPasswordResetEmail(email: email);
+  }
+
   Future<void> signOut() => _auth.signOut();
 }
