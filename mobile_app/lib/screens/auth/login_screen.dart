@@ -73,6 +73,77 @@ class _LoginScreenState extends State<LoginScreen>
     }
   }
 
+  Future<void> _showForgotPasswordDialog() async {
+    final controller = TextEditingController(text: _emailCtrl.text.trim());
+    bool busy = false;
+
+    await showDialog(
+      context: context,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (dialogContext, setState) => AlertDialog(
+          title: const Text('Reset Password'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'Enter your account email and we\'ll send you a link to set a new password.',
+              ),
+              const SizedBox(height: 16),
+              TextField(
+                controller: controller,
+                autofocus: true,
+                keyboardType: TextInputType.emailAddress,
+                decoration: const InputDecoration(labelText: 'Email'),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: busy ? null : () => Navigator.pop(dialogContext),
+              child: const Text('Cancel'),
+            ),
+            ElevatedButton(
+              onPressed: busy
+                  ? null
+                  : () async {
+                      final email = controller.text.trim();
+                      if (email.isEmpty) return;
+                      setState(() => busy = true);
+                      final auth = context.read<AuthProvider>();
+                      final ok = await auth.sendPasswordResetEmail(email);
+                      if (!dialogContext.mounted) return;
+                      if (ok) {
+                        Navigator.pop(dialogContext);
+                        if (!mounted) return;
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text(
+                              'If an account exists for that email, a reset link has been sent — check your inbox.',
+                            ),
+                          ),
+                        );
+                      } else {
+                        setState(() => busy = false);
+                        ScaffoldMessenger.of(dialogContext).showSnackBar(
+                          SnackBar(content: Text(auth.error ?? 'Something went wrong.')),
+                        );
+                      }
+                    },
+              child: busy
+                  ? const SizedBox(
+                      width: 18,
+                      height: 18,
+                      child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                    )
+                  : const Text('Send Reset Link'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -142,17 +213,7 @@ class _LoginScreenState extends State<LoginScreen>
                                   Align(
                                     alignment: Alignment.centerRight,
                                     child: TextButton(
-                                      onPressed: () {
-                                        ScaffoldMessenger.of(
-                                          context,
-                                        ).showSnackBar(
-                                          const SnackBar(
-                                            content: Text(
-                                              'Password reset coming soon',
-                                            ),
-                                          ),
-                                        );
-                                      },
+                                      onPressed: _showForgotPasswordDialog,
                                       child: const Text(
                                         'Forgot password?',
                                         style: TextStyle(
