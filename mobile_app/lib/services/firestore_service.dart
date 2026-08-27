@@ -55,6 +55,39 @@ class FirestoreService {
         .update({'status': status.name});
   }
 
+  // Stamps arrivedAt alongside the status change — that timestamp is what
+  // starts the 15-minute grace period before an unanswered arrival
+  // auto-resolves to `missed` (see autoResolveStaleRequests).
+  Future<void> markRequestArrived(String id) {
+    return _db.collection('pickupRequests').doc(id).update({
+      'status': RequestStatus.arrived.name,
+      'arrivedAt': FieldValue.serverTimestamp(),
+    });
+  }
+
+  // Self-healing timeout check, run against whatever list of requests a
+  // screen is currently displaying — no server-side cron job exists in this
+  // app, so this is what actually resolves a stuck request, the next time
+  // any relevant screen has it in view. Idempotent: once a request's status
+  // changes, it stops matching these conditions, so it won't refire.
+  Future<void> autoResolveStaleRequests(List<PickupRequest> requests) async {
+    final now = DateTime.now();
+    for (final r in requests) {
+      if (r.status == RequestStatus.active &&
+          r.expiresAt != null &&
+          now.isAfter(r.expiresAt!)) {
+        await updateRequestStatus(r.id, RequestStatus.expired);
+      } else if (r.status == RequestStatus.arrived &&
+          r.arrivedAt != null &&
+          now.difference(r.arrivedAt!) >= const Duration(minutes: 15)) {
+        await _db.collection('pickupRequests').doc(r.id).update({
+          'status': RequestStatus.missed.name,
+          'autoMissed': true,
+        });
+      }
+    }
+  }
+
   // Only succeeds within 10 minutes of creation while the request is still
   // `active` — enforced server-side by firestore.rules, not just here.
   Future<void> deleteRequest(String id) {

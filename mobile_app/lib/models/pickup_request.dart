@@ -10,6 +10,13 @@ class PickupRequest {
   final RequestStatus status;
   final DateTime createdAt;
   final DateTime? expiresAt;
+  // Stamped when status first becomes `arrived` — measures the 15-minute
+  // grace period before an unanswered arrival auto-resolves to `missed`.
+  final DateTime? arrivedAt;
+  // True only when the 15-minute timeout (not a resident's own tap) is what
+  // set status to `missed` — lets the resident's card explain why, instead
+  // of showing the same message as a request they marked missed themselves.
+  final bool autoMissed;
 
   PickupRequest({
     required this.id,
@@ -19,6 +26,8 @@ class PickupRequest {
     required this.status,
     required this.createdAt,
     this.expiresAt,
+    this.arrivedAt,
+    this.autoMissed = false,
   });
 
   factory PickupRequest.fromFirestore(DocumentSnapshot doc) {
@@ -34,6 +43,8 @@ class PickupRequest {
       ),
       createdAt: (d['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
       expiresAt: (d['expiresAt'] as Timestamp?)?.toDate(),
+      arrivedAt: (d['arrivedAt'] as Timestamp?)?.toDate(),
+      autoMissed: d['autoMissed'] ?? false,
     );
   }
 

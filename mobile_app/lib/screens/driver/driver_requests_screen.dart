@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import '../../models/pickup_request.dart';
@@ -13,10 +14,28 @@ class DriverRequestsScreen extends StatefulWidget {
 class _DriverRequestsScreenState extends State<DriverRequestsScreen> {
   final _fs = FirestoreService();
   List<PickupRequest> _requests = [];
+  Timer? _recheckTimer;
+
+  @override
+  void initState() {
+    super.initState();
+    // Same reasoning as MyPickupsScreen — a Firestore stream only re-fires
+    // on an actual write, so an idle screen wouldn't otherwise notice a
+    // request going stale exactly at its 15-minute/expiry mark.
+    _recheckTimer = Timer.periodic(const Duration(seconds: 30), (_) {
+      if (_requests.isNotEmpty) _fs.autoResolveStaleRequests(_requests);
+    });
+  }
+
+  @override
+  void dispose() {
+    _recheckTimer?.cancel();
+    super.dispose();
+  }
 
   Future<void> _manualArrive(PickupRequest req) async {
     try {
-      await _fs.updateRequestStatus(req.id, RequestStatus.arrived);
+      await _fs.markRequestArrived(req.id);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
@@ -70,6 +89,7 @@ class _DriverRequestsScreenState extends State<DriverRequestsScreen> {
             );
           }
           _requests = snap.data ?? [];
+          _fs.autoResolveStaleRequests(_requests); // fire-and-forget self-heal
 
           if (_requests.isEmpty) {
             return const Center(
