@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
@@ -5,8 +6,36 @@ import '../../models/pickup_request.dart';
 import '../../providers/auth_provider.dart';
 import '../../services/firestore_service.dart';
 
-class MyPickupsScreen extends StatelessWidget {
+class MyPickupsScreen extends StatefulWidget {
   const MyPickupsScreen({super.key});
+
+  @override
+  State<MyPickupsScreen> createState() => _MyPickupsScreenState();
+}
+
+class _MyPickupsScreenState extends State<MyPickupsScreen> {
+  final _fs = FirestoreService();
+  Timer? _recheckTimer;
+  List<PickupRequest> _lastRequests = [];
+
+  @override
+  void initState() {
+    super.initState();
+    // A Firestore stream only re-fires when something actually writes to a
+    // matching doc — sitting idle for the full 15-minute arrival window
+    // wouldn't trigger a re-check on its own. Re-run periodically instead;
+    // if it finds and writes a stale request, that write is itself what
+    // makes the stream (and the UI) update.
+    _recheckTimer = Timer.periodic(const Duration(seconds: 30), (_) {
+      if (_lastRequests.isNotEmpty) _fs.autoResolveStaleRequests(_lastRequests);
+    });
+  }
+
+  @override
+  void dispose() {
+    _recheckTimer?.cancel();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -19,7 +48,6 @@ class MyPickupsScreen extends StatelessWidget {
     }
 
     final uid = auth.user!.uid;
-    final fs = FirestoreService();
 
     return Scaffold(
       appBar: AppBar(
@@ -28,7 +56,7 @@ class MyPickupsScreen extends StatelessWidget {
         foregroundColor: Colors.white,
       ),
       body: StreamBuilder<List<PickupRequest>>(
-        stream: fs.watchMyRequests(uid),
+        stream: _fs.watchMyRequests(uid),
         builder: (context, snap) {
           if (snap.connectionState == ConnectionState.waiting) {
             return const Center(child: CircularProgressIndicator());
@@ -40,6 +68,8 @@ class MyPickupsScreen extends StatelessWidget {
             );
           }
           final requests = snap.data ?? [];
+          _lastRequests = requests;
+          _fs.autoResolveStaleRequests(requests); // fire-and-forget self-heal
           if (requests.isEmpty) {
             return const Center(
               child: Column(
@@ -324,17 +354,39 @@ class _RequestCard extends StatelessWidget {
               ),
             ] else if (request.status == RequestStatus.missed) ...[
               const SizedBox(height: 8),
+              Row(
+                children: [
+                  const Icon(Icons.warning_amber_rounded,
+                      size: 16, color: Colors.orange),
+                  const SizedBox(width: 4),
+                  Expanded(
+                    child: Text(
+                      request.autoMissed
+                          ? 'Driver arrived — no response within 15 minutes, '
+                              'so this request was automatically closed'
+                          : 'Missed — waste was not handed over',
+                      style: const TextStyle(
+                          fontSize: 13,
+                          color: Colors.orange,
+                          fontWeight: FontWeight.w500),
+                    ),
+                  ),
+                ],
+              ),
+            ] else if (request.status == RequestStatus.expired) ...[
+              const SizedBox(height: 8),
               const Row(
                 children: [
-                  Icon(Icons.warning_amber_rounded,
-                      size: 16, color: Colors.orange),
+                  Icon(Icons.cancel_outlined, size: 16, color: Colors.grey),
                   SizedBox(width: 4),
-                  Text(
-                    'Missed — waste was not handed over',
-                    style: TextStyle(
-                        fontSize: 13,
-                        color: Colors.orange,
-                        fontWeight: FontWeight.w500),
+                  Expanded(
+                    child: Text(
+                      'Expired — no truck arrived within your selected time window',
+                      style: TextStyle(
+                          fontSize: 13,
+                          color: Colors.grey,
+                          fontWeight: FontWeight.w500),
+                    ),
                   ),
                 ],
               ),

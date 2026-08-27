@@ -54,8 +54,23 @@ class _DriverPickupRouteScreenState extends State<DriverPickupRouteScreen> {
   static const double _offRouteThresholdM = 150;
   static const Duration _rerouteCooldown = Duration(seconds: 15);
 
+  Timer? _recheckTimer;
+  List<PickupRequest> _allRequests = [];
+
+  @override
+  void initState() {
+    super.initState();
+    // Same reasoning as MyPickupsScreen — a Firestore stream only re-fires
+    // on an actual write, so an idle screen wouldn't otherwise notice a
+    // request going stale exactly at its 15-minute/expiry mark.
+    _recheckTimer = Timer.periodic(const Duration(seconds: 30), (_) {
+      if (_allRequests.isNotEmpty) _fs.autoResolveStaleRequests(_allRequests);
+    });
+  }
+
   @override
   void dispose() {
+    _recheckTimer?.cancel();
     _gpsSub?.cancel();
     _mapController.dispose();
     super.dispose();
@@ -104,7 +119,7 @@ class _DriverPickupRouteScreenState extends State<DriverPickupRouteScreen> {
       final dist = _haversine(lat, lng, req.lat, req.lng);
       if (dist <= _arrivalThresholdM) {
         _arrivedIds.add(req.id);
-        _fs.updateRequestStatus(req.id, RequestStatus.arrived);
+        _fs.markRequestArrived(req.id);
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
@@ -345,8 +360,14 @@ class _DriverPickupRouteScreenState extends State<DriverPickupRouteScreen> {
       body: StreamBuilder<List<PickupRequest>>(
         stream: _fs.watchActiveRequests(),
         builder: (context, snap) {
+          final allRequests = snap.data ?? [];
+          // watchActiveRequests() includes both `active` and `arrived`
+          // (needed here so the 15-minute arrived-timeout check below can
+          // see arrived ones too, not just active ones).
+          _allRequests = allRequests;
+          _fs.autoResolveStaleRequests(allRequests); // fire-and-forget self-heal
           _activeRequests =
-              (snap.data ?? []).where((r) => r.status == RequestStatus.active).toList();
+              allRequests.where((r) => r.status == RequestStatus.active).toList();
           final markers = _buildMarkers();
           final routePoints = _visibleRoutePoints(_buildRoutePoints());
 
