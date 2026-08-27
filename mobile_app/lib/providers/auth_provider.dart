@@ -134,6 +134,23 @@ class AuthProvider extends ChangeNotifier {
     }
   }
 
+  /// Clears the one-time "your account was re-enabled" notice after the
+  /// user has seen it on AccountReenabledScreen, so the router gate lets
+  /// them through to their real dashboard on the next check.
+  Future<void> acknowledgeRecoveryNotice() async {
+    if (_user == null) return;
+    try {
+      await FirebaseFirestore.instance
+          .collection('users')
+          .doc(_user!.uid)
+          .update({'pendingRecoveryNotice': FieldValue.delete()});
+    } catch (_) {
+      // Best-effort — worst case they see the notice once more next login.
+    }
+    _user = _user!.copyWith(clearRecoveryNotice: true);
+    notifyListeners();
+  }
+
   Future<void> signOut() async {
     await _authService.signOut();
     _user = null;

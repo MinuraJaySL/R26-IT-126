@@ -8,6 +8,9 @@ class AppUser {
   final String phone;
   final String vehicleNumber;
   final bool disabled;
+  // Set by an admin's resolveRecoveryRequest call only when they re-enable
+  // this account — shown once via AccountReenabledScreen, then cleared.
+  final String? pendingRecoveryNotice;
 
   AppUser({
     required this.uid,
@@ -17,6 +20,7 @@ class AppUser {
     this.phone = '',
     this.vehicleNumber = '',
     this.disabled = false,
+    this.pendingRecoveryNotice,
   });
 
   // Residents self-register with just email/password (see the OTP signup
@@ -36,10 +40,15 @@ class AppUser {
       phone: data['phone'] ?? '',
       vehicleNumber: data['vehicleNumber'] ?? '',
       disabled: data['disabled'] ?? false,
+      pendingRecoveryNotice: data['pendingRecoveryNotice'],
     );
   }
 
-  AppUser copyWith({String? name, String? phone}) {
+  // clearRecoveryNotice is a separate flag (not just an omittable param)
+  // because the notice's correct "no update" value is "leave as-is" while
+  // its correct "cleared" value is null — a nullable param defaulting to
+  // null can't distinguish those two cases.
+  AppUser copyWith({String? name, String? phone, bool clearRecoveryNotice = false}) {
     return AppUser(
       uid: uid,
       email: email,
@@ -48,6 +57,7 @@ class AppUser {
       phone: phone ?? this.phone,
       vehicleNumber: vehicleNumber,
       disabled: disabled,
+      pendingRecoveryNotice: clearRecoveryNotice ? null : pendingRecoveryNotice,
     );
   }
 }
