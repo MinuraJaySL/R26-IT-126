@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -8,6 +9,7 @@ import '../services/notification_service.dart';
 class AuthProvider extends ChangeNotifier {
   final AuthService _authService = AuthService();
   final NotificationService _notifService = NotificationService();
+  StreamSubscription<String>? _tokenRefreshSub;
 
   AppUser? _user;
   bool _loading = true;
@@ -152,14 +154,22 @@ class AuthProvider extends ChangeNotifier {
   }
 
   Future<void> signOut() async {
+    _tokenRefreshSub?.cancel();
+    _tokenRefreshSub = null;
     await _authService.signOut();
     _user = null;
     notifyListeners();
   }
 
+  // Requests notification permission, saves the current FCM token, and
+  // keeps it fresh if the token rotates (FCM tokens aren't permanent —
+  // they can change after a reinstall, an OS-level cache clear, etc). None
+  // of this actually SENDS anything — it just gets this device registered
+  // to receive a push the Worker later sends via /notify.
   Future<void> _saveFcmToken() async {
     try {
       if (_user == null) return;
+      await _notifService.initialize();
       final token = await _notifService.getToken();
       if (token != null) {
         await FirebaseFirestore.instance
@@ -167,6 +177,16 @@ class AuthProvider extends ChangeNotifier {
             .doc(_user!.uid)
             .update({'fcmToken': token});
       }
+
+      _tokenRefreshSub?.cancel();
+      _tokenRefreshSub = _notifService.tokenRefreshStream.listen((newToken) {
+        if (_user == null) return;
+        FirebaseFirestore.instance
+            .collection('users')
+            .doc(_user!.uid)
+            .update({'fcmToken': newToken})
+            .catchError((_) {});
+      });
     } catch (_) {
       // Best-effort — FCM is not available on all platforms/configs
     }

@@ -1,7 +1,9 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:provider/provider.dart';
 import '../../models/pickup_request.dart';
+import '../../providers/auth_provider.dart';
 import '../../services/firestore_service.dart';
 
 class DriverRequestsScreen extends StatefulWidget {
@@ -35,7 +37,8 @@ class _DriverRequestsScreenState extends State<DriverRequestsScreen> {
 
   Future<void> _manualArrive(PickupRequest req) async {
     try {
-      await _fs.markRequestArrived(req.id);
+      final driverId = context.read<AuthProvider>().user!.uid;
+      await _fs.markRequestArrived(req.id, driverId);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(

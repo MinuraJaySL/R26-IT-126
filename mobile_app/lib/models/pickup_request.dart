@@ -13,6 +13,10 @@ class PickupRequest {
   // Stamped when status first becomes `arrived` — measures the 15-minute
   // grace period before an unanswered arrival auto-resolves to `missed`.
   final DateTime? arrivedAt;
+  // Which driver's arrival stamped `arrivedAt` — since any driver's GPS can
+  // trigger it (no per-request driver assignment exists), this is how the
+  // "collected" push notification knows who to tell.
+  final String? arrivedByDriverId;
   // True only when the 15-minute timeout (not a resident's own tap) is what
   // set status to `missed` — lets the resident's card explain why, instead
   // of showing the same message as a request they marked missed themselves.
@@ -27,6 +31,7 @@ class PickupRequest {
     required this.createdAt,
     this.expiresAt,
     this.arrivedAt,
+    this.arrivedByDriverId,
     this.autoMissed = false,
   });
 
@@ -44,6 +49,7 @@ class PickupRequest {
       createdAt: (d['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
       expiresAt: (d['expiresAt'] as Timestamp?)?.toDate(),
       arrivedAt: (d['arrivedAt'] as Timestamp?)?.toDate(),
+      arrivedByDriverId: d['arrivedByDriverId'],
       autoMissed: d['autoMissed'] ?? false,
     );
   }

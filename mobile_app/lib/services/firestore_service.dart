@@ -3,8 +3,11 @@ import '../models/bin_model.dart';
 import '../models/bin_report.dart';
 import '../models/pickup_request.dart';
 import '../models/recovery_request.dart';
+import 'notification_service.dart';
 
 class FirestoreService {
+  final _notify = NotificationService();
+
   final FirebaseFirestore _db = FirebaseFirestore.instance;
 
   // Bins
@@ -58,11 +61,13 @@ class FirestoreService {
   // Stamps arrivedAt alongside the status change — that timestamp is what
   // starts the 15-minute grace period before an unanswered arrival
   // auto-resolves to `missed` (see autoResolveStaleRequests).
-  Future<void> markRequestArrived(String id) {
-    return _db.collection('pickupRequests').doc(id).update({
+  Future<void> markRequestArrived(String id, String driverId) async {
+    await _db.collection('pickupRequests').doc(id).update({
       'status': RequestStatus.arrived.name,
       'arrivedAt': FieldValue.serverTimestamp(),
+      'arrivedByDriverId': driverId,
     });
+    _notify.notifyEvent('arrived', id); // fire-and-forget
   }
 
   // Self-healing timeout check, run against whatever list of requests a
@@ -77,6 +82,7 @@ class FirestoreService {
           r.expiresAt != null &&
           now.isAfter(r.expiresAt!)) {
         await updateRequestStatus(r.id, RequestStatus.expired);
+        _notify.notifyEvent('autoResolved', r.id); // fire-and-forget
       } else if (r.status == RequestStatus.arrived &&
           r.arrivedAt != null &&
           now.difference(r.arrivedAt!) >= const Duration(minutes: 15)) {
@@ -84,6 +90,7 @@ class FirestoreService {
           'status': RequestStatus.missed.name,
           'autoMissed': true,
         });
+        _notify.notifyEvent('autoResolved', r.id); // fire-and-forget
       }
     }
   }
@@ -152,13 +159,14 @@ class FirestoreService {
     String id,
     String driverId,
     String resolutionNote,
-  ) {
-    return _db.collection('binReports').doc(id).update({
+  ) async {
+    await _db.collection('binReports').doc(id).update({
       'status': 'resolved',
       'resolvedBy': driverId,
       'resolutionNote': resolutionNote,
       'resolvedAt': FieldValue.serverTimestamp(),
     });
+    _notify.notifyEvent('reportResolved', id); // fire-and-forget
   }
 
   // Account recovery requests (submitted by a disabled account, resolved by
@@ -203,7 +211,7 @@ class FirestoreService {
     required String adminId,
     required String resolutionNote,
     required bool reenableAccount,
-  }) {
+  }) async {
     final batch = _db.batch();
     batch.update(_db.collection('accountRecoveryRequests').doc(requestId), {
       'status': 'resolved',
@@ -222,7 +230,8 @@ class FirestoreService {
         'pendingRecoveryNotice': resolutionNote,
       });
     }
-    return batch.commit();
+    await batch.commit();
+    _notify.notifyEvent('recoveryResolved', requestId); // fire-and-forget
   }
 
   // One-time lookup (not a stream) for the AccountDisabledScreen to show

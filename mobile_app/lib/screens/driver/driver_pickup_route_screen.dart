@@ -113,13 +113,13 @@ class _DriverPickupRouteScreenState extends State<DriverPickupRouteScreen> {
     }
   }
 
-  void _checkProximity(double lat, double lng) {
+  void _checkProximity(double lat, double lng, String driverId) {
     for (final req in _activeRequests) {
       if (_arrivedIds.contains(req.id)) continue;
       final dist = _haversine(lat, lng, req.lat, req.lng);
       if (dist <= _arrivalThresholdM) {
         _arrivedIds.add(req.id);
-        _fs.markRequestArrived(req.id);
+        _fs.markRequestArrived(req.id, driverId);
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
@@ -150,7 +150,7 @@ class _DriverPickupRouteScreenState extends State<DriverPickupRouteScreen> {
             .catchError((e) => debugPrint('Failed to upload driver location: $e'));
       }
 
-      _checkProximity(pos.latitude, pos.longitude);
+      _checkProximity(pos.latitude, pos.longitude, driverId);
       _checkOffRoute(pos.latitude, pos.longitude);
     });
   }

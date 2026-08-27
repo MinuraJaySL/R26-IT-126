@@ -13,8 +13,11 @@
  * three steps below server-side; do not add an endpoint that returns the
  * plaintext code or the Firestore document contents to the client.
  *
- * Four endpoints, three mirroring the three-step Flutter sign-up flow, one
- * for admin-driven driver account creation:
+ * Five endpoints: three mirroring the three-step Flutter sign-up flow, one
+ * for admin-driven driver account creation, one for sending push
+ * notifications (this app has no Cloud Functions, so there's no database
+ * trigger — the client explicitly asks for a push at the moment a
+ * notification-worthy event happens):
  *   POST /request-code          — step 1: email in, verification code emailed out
  *   POST /confirm-code          — step 2: code in, verified flag set server-side
  *   POST /complete-registration — step 3: password in, Firebase Auth account created
@@ -22,6 +25,9 @@
  *   POST /admin/create-driver   — admin-only: creates a driver account server-side
  *                                 (gated on the caller's Firestore role being 'admin',
  *                                 checked after verifying their Firebase ID token)
+ *   POST /notify                — sends a push for one of 5 known events; the client
+ *                                 supplies only an event name + doc id, never the
+ *                                 notification text (see handleNotify for why)
  */
 
 export interface Env {
@@ -191,7 +197,10 @@ async function getGoogleAccessToken(env: Env): Promise<string> {
   const header = { alg: "RS256", typ: "JWT" };
   const claims = {
     iss: serviceAccount.client_email,
-    scope: "https://www.googleapis.com/auth/datastore",
+    // datastore — Firestore REST calls above. firebase.messaging — sending
+    // pushes via FCM's HTTP v1 API (see sendPushNotification / /notify).
+    scope:
+      "https://www.googleapis.com/auth/datastore https://www.googleapis.com/auth/firebase.messaging",
     aud: "https://oauth2.googleapis.com/token",
     iat: nowSec,
     exp: nowSec + 3600,
@@ -562,6 +571,39 @@ async function sendDriverCredentialsEmail(
 }
 
 // ---------------------------------------------------------------------------
+// Push notifications (FCM HTTP v1) — this app has no Cloud Functions, so
+// there is no "watch Firestore and react" trigger. The client explicitly
+// asks for a push at the moment something notification-worthy happens (see
+// /notify below); this just does the actual send once the caller supplies a
+// device token.
+// ---------------------------------------------------------------------------
+
+async function sendPushNotification(
+  env: Env,
+  token: string,
+  fcmToken: string,
+  title: string,
+  body: string
+): Promise<void> {
+  const url = `https://fcm.googleapis.com/v1/projects/${env.FIREBASE_PROJECT_ID}/messages:send`;
+  const res = await fetch(url, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+    body: JSON.stringify({
+      message: { token: fcmToken, notification: { title, body } },
+    }),
+  });
+  if (!res.ok) {
+    // A stale/invalid device token (uninstalled app, revoked permission) is
+    // an expected, routine failure mode here — log it, but don't throw. The
+    // caller already completed their real action (resolving a report,
+    // marking arrived, etc); the push is a best-effort bonus on top, not the
+    // point of the request.
+    console.error("FCM send failed:", await res.text().catch(() => res.statusText));
+  }
+}
+
+// ---------------------------------------------------------------------------
 // Endpoint handlers
 // ---------------------------------------------------------------------------
 
@@ -800,6 +842,99 @@ async function handleCreateDriver(req: Request, env: Env): Promise<Response> {
   return json({ ok: true });
 }
 
+/**
+ * POST /notify  { idToken, event, id }
+ * Sends a push notification for one of five real, in-app events. The client
+ * supplies only an event name and a Firestore document id — never the
+ * notification text — and this Worker re-derives the target user and the
+ * message itself by reading the real document. That's deliberate: if the
+ * client could supply arbitrary title/body text, any signed-in user could
+ * use this endpoint to push arbitrary spam to any other user. Requiring a
+ * valid idToken only confirms "a real signed-in app user triggered this" —
+ * it does not otherwise restrict who can trigger which event, matching the
+ * trust level already extended elsewhere in this app (e.g. any driver can
+ * already resolve any bin report directly via firestore.rules).
+ */
+async function handleNotify(req: Request, env: Env): Promise<Response> {
+  const body = (await req.json()) as { idToken?: string; event?: string; id?: string };
+  if (typeof body.idToken !== "string" || !body.idToken) {
+    throw new ApiError("Missing session token.", 401);
+  }
+  await verifyFirebaseIdToken(env, body.idToken); // must be a real signed-in user
+
+  const id = String(body.id ?? "").trim();
+  if (!id) throw new ApiError("Missing document id.", 400);
+
+  const token = await getGoogleAccessToken(env);
+  let targetUid: string | null = null;
+  let title = "";
+  let messageBody = "";
+
+  switch (body.event) {
+    case "arrived": {
+      const doc = await firestoreGet(env, token, `pickupRequests/${id}`);
+      if (!doc) throw new ApiError("Request not found.", 404);
+      targetUid = doc.residentId as string;
+      title = "Truck has arrived!";
+      messageBody =
+        "The garbage truck has arrived at your pickup point. Please bring your waste out now.";
+      break;
+    }
+    case "collected": {
+      const doc = await firestoreGet(env, token, `pickupRequests/${id}`);
+      if (!doc) throw new ApiError("Request not found.", 404);
+      // Null when the doc predates arrivedByDriverId, or arrival was never
+      // GPS/manually recorded for this request — nothing to notify then.
+      targetUid = (doc.arrivedByDriverId as string | null) ?? null;
+      title = "Pickup confirmed";
+      messageBody = "The resident confirmed handover — this pickup is complete.";
+      break;
+    }
+    case "reportResolved": {
+      const doc = await firestoreGet(env, token, `binReports/${id}`);
+      if (!doc) throw new ApiError("Report not found.", 404);
+      targetUid = doc.residentId as string;
+      title = "Your report was resolved";
+      messageBody =
+        (doc.resolutionNote as string | null) || "A driver has resolved the issue you reported.";
+      break;
+    }
+    case "recoveryResolved": {
+      const doc = await firestoreGet(env, token, `accountRecoveryRequests/${id}`);
+      if (!doc) throw new ApiError("Recovery request not found.", 404);
+      targetUid = doc.uid as string;
+      const reenabled = doc.reenabled === true;
+      title = reenabled ? "Your account has been re-enabled" : "Update on your account request";
+      messageBody =
+        (doc.resolutionNote as string | null) ||
+        (reenabled ? "You can now sign in again." : "Your request was reviewed.");
+      break;
+    }
+    case "autoResolved": {
+      const doc = await firestoreGet(env, token, `pickupRequests/${id}`);
+      if (!doc) throw new ApiError("Request not found.", 404);
+      targetUid = doc.residentId as string;
+      const expired = doc.status === "expired";
+      title = expired ? "Pickup request expired" : "Pickup request closed";
+      messageBody = expired
+        ? "No truck arrived within your selected time window."
+        : "There was no response within 15 minutes, so this request was automatically closed.";
+      break;
+    }
+    default:
+      throw new ApiError("Unknown notification event.", 400);
+  }
+
+  if (!targetUid) return json({ ok: true, skipped: true });
+
+  const userDoc = await firestoreGet(env, token, `users/${targetUid}`);
+  const fcmToken = userDoc?.fcmToken as string | undefined;
+  if (!fcmToken) return json({ ok: true, skipped: true }); // no device token on file
+
+  await sendPushNotification(env, token, fcmToken, title, messageBody);
+  return json({ ok: true });
+}
+
 // ---------------------------------------------------------------------------
 // Router
 // ---------------------------------------------------------------------------
@@ -824,6 +959,8 @@ export default {
           return await handleCompleteRegistration(req, env);
         case "/admin/create-driver":
           return await handleCreateDriver(req, env);
+        case "/notify":
+          return await handleNotify(req, env);
         default:
           return errorJson("Not found.", 404);
       }
