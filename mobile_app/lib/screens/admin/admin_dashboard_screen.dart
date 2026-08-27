@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 
 import '../../providers/auth_provider.dart';
 import '../../services/admin_service.dart';
+import '../../widgets/confirm_logout_dialog.dart';
 
 class AdminDashboardScreen extends StatefulWidget {
   const AdminDashboardScreen({super.key});
@@ -39,6 +40,8 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
             icon: const Icon(Icons.logout),
             tooltip: 'Log out',
             onPressed: () async {
+              final confirmed = await confirmLogout(context);
+              if (!confirmed || !context.mounted) return;
               await context.read<AuthProvider>().signOut();
               if (context.mounted) context.go('/login');
             },

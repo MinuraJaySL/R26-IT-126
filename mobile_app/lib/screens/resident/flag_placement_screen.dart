@@ -8,6 +8,7 @@ import '../../models/pickup_request.dart';
 import '../../providers/auth_provider.dart';
 import '../../services/firestore_service.dart';
 import '../../services/location_service.dart';
+import '../../widgets/map_recenter_button.dart';
 
 class FlagPlacementScreen extends StatefulWidget {
   const FlagPlacementScreen({super.key});
@@ -89,35 +90,55 @@ class _FlagPlacementScreenState extends State<FlagPlacementScreen> {
           Expanded(
             child: _loadingLocation
                 ? const Center(child: CircularProgressIndicator())
-                : FlutterMap(
-                    mapController: _mapController,
-                    options: MapOptions(
-                      initialCenter: _initialPosition,
-                      initialZoom: 16,
-                      onTap: (_, point) =>
-                          setState(() => _selectedPoint = point),
-                    ),
+                : Stack(
                     children: [
-                      TileLayer(
-                        urlTemplate:
-                            'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-                        userAgentPackageName: 'com.r26it126.mobile_app',
-                      ),
-                      if (_selectedPoint != null)
-                        MarkerLayer(
-                          markers: [
-                            Marker(
-                              point: _selectedPoint!,
-                              width: 40,
-                              height: 40,
-                              child: const Icon(
-                                Icons.flag,
-                                color: Colors.green,
-                                size: 40,
-                              ),
-                            ),
-                          ],
+                      FlutterMap(
+                        mapController: _mapController,
+                        options: MapOptions(
+                          initialCenter: _initialPosition,
+                          initialZoom: 16,
+                          onTap: (_, point) =>
+                              setState(() => _selectedPoint = point),
                         ),
+                        children: [
+                          TileLayer(
+                            urlTemplate:
+                                'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+                            userAgentPackageName: 'com.r26it126.mobile_app',
+                          ),
+                          if (_selectedPoint != null)
+                            MarkerLayer(
+                              markers: [
+                                Marker(
+                                  point: _selectedPoint!,
+                                  width: 40,
+                                  height: 40,
+                                  child: const Icon(
+                                    Icons.flag,
+                                    color: Colors.green,
+                                    size: 40,
+                                  ),
+                                ),
+                              ],
+                            ),
+                        ],
+                      ),
+                      Positioned(
+                        bottom: 16,
+                        right: 16,
+                        child: MapRecenterButton(
+                          color: Colors.green,
+                          onPressed: () async {
+                            final pos = await _locationService.getCurrentPosition();
+                            if (pos != null && mounted) {
+                              _mapController.move(
+                                LatLng(pos.latitude, pos.longitude),
+                                _mapController.camera.zoom,
+                              );
+                            }
+                          },
+                        ),
+                      ),
                     ],
                   ),
           ),

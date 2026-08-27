@@ -7,6 +7,7 @@ import '../../models/pickup_request.dart';
 import '../../services/firestore_service.dart';
 import '../../services/location_service.dart';
 import '../../services/road_route_service.dart';
+import '../../widgets/map_recenter_button.dart';
 
 // Same fallback used by Flag Placement / the driver map when GPS isn't
 // available yet — keeps the map showing something sensible immediately.
@@ -401,6 +402,13 @@ class _TrackTruckScreenState extends State<TrackTruckScreen> {
                       icon: Icons.local_shipping),
                 ],
               ),
+            ),
+          ),
+          Positioned(
+            bottom: 16,
+            right: 16,
+            child: MapRecenterButton(
+              onPressed: () => _mapController.move(pickupPoint, 15),
             ),
           ),
         ],

@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import '../../models/app_user.dart';
 import '../../providers/auth_provider.dart';
 import '../../widgets/app_input_decoration.dart';
+import '../../widgets/confirm_logout_dialog.dart';
 
 final _phoneRegex = RegExp(r'^\+?[0-9]{7,15}$');
 
@@ -53,6 +54,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   Future<void> _signOut() async {
+    final confirmed = await confirmLogout(context);
+    if (!confirmed || !mounted) return;
     await context.read<AuthProvider>().signOut();
     if (mounted) context.go('/login');
   }
