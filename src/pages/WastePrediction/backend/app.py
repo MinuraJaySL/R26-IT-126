@@ -147,6 +147,9 @@ def fetch_rainfall_forecast(week_start_date=None):
         print(f"[DEBUG] CSV date lookup skipped: {e}")
 
     # 2. Try Open-Meteo combined past + forecast (past 92 days to next 16 days)
+    # NOTE: The forecast endpoint returns None for precipitation_sum on older past dates
+    #       (~30+ days ago). We only use this result if all 7 target dates have REAL (non-None)
+    #       values. If any are None for a past week we fall through to the Archive API (step 3).
     try:
         resp = http_requests.get(OPEN_METEO_URL, params={
             "latitude": KALUTARA_LAT,
@@ -162,25 +165,38 @@ def fetch_rainfall_forecast(week_start_date=None):
         daily = data.get("daily", {})
         dates = daily.get("time", [])
         precip = daily.get("precipitation_sum", [])
-        date_map = {d: float(p) if p is not None else 0.0 for d, p in zip(dates, precip)}
+        # Keep None distinct so we can detect missing data (do NOT convert to 0.0 yet)
+        raw_map = {d: p for d, p in zip(dates, precip)}
 
-        matched_dates = [d for d in target_dates if d in date_map]
+        matched_dates = [d for d in target_dates if d in raw_map]
         if len(matched_dates) == 7:
-            daily_data = [{"date": d, "precipitation_mm": date_map[d]} for d in target_dates]
-            total_mm = round(sum(d["precipitation_mm"] for d in daily_data), 1)
-            is_past = week_start_date < today
-            return {
-                "success": True,
-                "source": "Open-Meteo (Actual Recorded Weather)" if is_past else "Open-Meteo (Live Forecast)",
-                "sourceType": "historical_actual" if is_past else "forecast",
-                "location": "Kalutara, Sri Lanka",
-                "coordinates": {"lat": KALUTARA_LAT, "lon": KALUTARA_LON},
-                "total_mm": total_mm,
-                "daily": daily_data,
-                "forecast_days": 7,
-                "weekStart": str(week_start_date),
-                "weekEnd": str(week_end_date),
-            }
+            raw_values = [raw_map[d] for d in target_dates]
+            has_null = any(v is None for v in raw_values)
+
+            # For past weeks: if any value is None, the forecast endpoint lacks data for
+            # these older dates. Skip to Archive API which has the real historical records.
+            if has_null and week_start_date < today:
+                print(f"[DEBUG] Open-Meteo forecast has None values for past week {week_start_date} "
+                      f"– falling back to Archive API for actual historical rainfall.")
+            else:
+                daily_data = [
+                    {"date": d, "precipitation_mm": float(v) if v is not None else 0.0}
+                    for d, v in zip(target_dates, raw_values)
+                ]
+                total_mm = round(sum(d["precipitation_mm"] for d in daily_data), 1)
+                is_past = week_start_date < today
+                return {
+                    "success": True,
+                    "source": "Open-Meteo (Actual Recorded Weather)" if is_past else "Open-Meteo (Live Forecast)",
+                    "sourceType": "historical_actual" if is_past else "forecast",
+                    "location": "Kalutara, Sri Lanka",
+                    "coordinates": {"lat": KALUTARA_LAT, "lon": KALUTARA_LON},
+                    "total_mm": total_mm,
+                    "daily": daily_data,
+                    "forecast_days": 7,
+                    "weekStart": str(week_start_date),
+                    "weekEnd": str(week_end_date),
+                }
     except Exception as e:
         print(f"[WARN] Open-Meteo API query failed: {e}")
 
@@ -195,7 +211,7 @@ def fetch_rainfall_forecast(week_start_date=None):
                 "timezone": "Asia/Colombo",
                 "start_date": str(week_start_date),
                 "end_date": str(week_end_date),
-            }, timeout=10)
+            }, timeout=25)  # 25s — archive API is slower than the forecast endpoint
             resp.raise_for_status()
             data = resp.json()
 
