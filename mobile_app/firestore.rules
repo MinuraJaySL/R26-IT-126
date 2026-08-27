@@ -31,9 +31,15 @@ service cloud.firestore {
       allow create: if isSignedIn() && request.auth.uid == userId &&
         (!('role' in request.resource.data) || request.resource.data.role == 'resident');
 
+      // A user may update their own doc (name, phone, fcmToken, etc) but can
+      // never change their own role (self-elevation) or disabled flag
+      // (self-reactivating an account an admin disabled). .get(...) with a
+      // default avoids an eval error on older docs written before the
+      // `disabled` field existed. Admins may change either.
       allow update: if isSignedIn() && (
         (request.auth.uid == userId &&
-          request.resource.data.role == resource.data.role) ||
+          request.resource.data.role == resource.data.role &&
+          request.resource.data.get('disabled', false) == resource.data.get('disabled', false)) ||
         isAdmin()
       );
 
@@ -70,6 +76,16 @@ service cloud.firestore {
       allow read: if isSignedIn();
       allow create: if isSignedIn() && request.resource.data.residentId == request.auth.uid;
       allow update: if isDriver();
+      allow delete: if false;
+    }
+
+    // A disabled account (still able to authenticate — the app's router
+    // gate is what blocks them, not sign-in) may file exactly one recovery
+    // request for itself; only admin can read or resolve it.
+    match /accountRecoveryRequests/{requestId} {
+      allow read: if isAdmin();
+      allow create: if isSignedIn() && request.resource.data.uid == request.auth.uid;
+      allow update: if isAdmin();
       allow delete: if false;
     }
 

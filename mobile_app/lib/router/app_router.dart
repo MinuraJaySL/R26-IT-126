@@ -6,6 +6,8 @@ import '../models/pickup_request.dart';
 import '../providers/auth_provider.dart';
 import '../screens/auth/login_screen.dart';
 import '../screens/auth/register_screen.dart';
+import '../screens/auth/account_disabled_screen.dart';
+import '../screens/auth/account_recovery_request_screen.dart';
 import '../screens/resident/resident_dashboard.dart';
 import '../screens/resident/complete_profile_screen.dart';
 import '../screens/resident/flag_placement_screen.dart';
@@ -24,6 +26,7 @@ import '../screens/driver/driver_missed_screen.dart';
 import '../screens/admin/admin_dashboard_screen.dart';
 import '../screens/admin/user_management_screen.dart';
 import '../screens/admin/add_driver_screen.dart';
+import '../screens/admin/admin_recovery_requests_screen.dart';
 import '../screens/profile/profile_screen.dart';
 
 GoRouter buildRouter() {
@@ -37,6 +40,18 @@ GoRouter buildRouter() {
           state.matchedLocation == '/register';
 
       if (!loggedIn && !onAuth) return '/login';
+
+      // A disabled account can still authenticate (see AuthService.signIn)
+      // but is blocked from every other screen — same gating trick as the
+      // resident profile-completion check below — so they can submit their
+      // own recovery request (which needs a real session) without ever
+      // reaching a real dashboard.
+      if (loggedIn && auth.user!.disabled) {
+        final onDisabledFlow =
+            state.matchedLocation.startsWith('/account-disabled');
+        return onDisabledFlow ? null : '/account-disabled';
+      }
+
       if (loggedIn && onAuth) {
         switch (auth.user!.role) {
           case UserRole.admin:
@@ -67,6 +82,14 @@ GoRouter buildRouter() {
     routes: [
       GoRoute(path: '/login', builder: (ctx, _) => const LoginScreen()),
       GoRoute(path: '/register', builder: (ctx, _) => const RegisterScreen()),
+      GoRoute(
+        path: '/account-disabled',
+        builder: (ctx, _) => const AccountDisabledScreen(),
+      ),
+      GoRoute(
+        path: '/account-disabled/request',
+        builder: (ctx, _) => const AccountRecoveryRequestScreen(),
+      ),
       GoRoute(path: '/resident', builder: (ctx, _) => const ResidentDashboard()),
       GoRoute(
         path: '/resident/complete-profile',
@@ -129,6 +152,10 @@ GoRouter buildRouter() {
       GoRoute(
         path: '/admin/add-driver',
         builder: (ctx, _) => const AddDriverScreen(),
+      ),
+      GoRoute(
+        path: '/admin/recovery-requests',
+        builder: (ctx, _) => const AdminRecoveryRequestsScreen(),
       ),
       GoRoute(path: '/profile', builder: (ctx, _) => const ProfileScreen()),
     ],

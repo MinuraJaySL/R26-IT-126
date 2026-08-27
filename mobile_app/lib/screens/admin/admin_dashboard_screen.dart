@@ -2,8 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
+import '../../models/recovery_request.dart';
 import '../../providers/auth_provider.dart';
 import '../../services/admin_service.dart';
+import '../../services/firestore_service.dart';
 import '../../widgets/confirm_logout_dialog.dart';
 
 class AdminDashboardScreen extends StatefulWidget {
@@ -24,7 +26,9 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
   }
 
   void _refresh() {
-    setState(() => _countsFuture = _adminService.fetchRoleCounts());
+    setState(() {
+      _countsFuture = _adminService.fetchRoleCounts();
+    });
   }
 
   @override
@@ -102,6 +106,21 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                   _refresh();
                 },
               ),
+              const SizedBox(height: 12),
+              StreamBuilder<List<RecoveryRequest>>(
+                stream: FirestoreService().watchOpenRecoveryRequests(),
+                builder: (context, snap) {
+                  final openCount = snap.data?.length ?? 0;
+                  return _ActionTile(
+                    scheme: scheme,
+                    icon: Icons.mail_outline,
+                    title: 'Recovery Requests',
+                    subtitle: 'Disabled accounts asking to be re-enabled',
+                    badgeCount: openCount,
+                    onTap: () => context.push('/admin/recovery-requests'),
+                  );
+                },
+              ),
             ],
           ),
         ),
@@ -157,6 +176,7 @@ class _ActionTile extends StatelessWidget {
     required this.title,
     required this.subtitle,
     required this.onTap,
+    this.badgeCount = 0,
   });
 
   final ColorScheme scheme;
@@ -164,6 +184,7 @@ class _ActionTile extends StatelessWidget {
   final String title;
   final String subtitle;
   final VoidCallback onTap;
+  final int badgeCount;
 
   @override
   Widget build(BuildContext context) {
@@ -201,6 +222,21 @@ class _ActionTile extends StatelessWidget {
                   ],
                 ),
               ),
+              if (badgeCount > 0) ...[
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                  decoration: BoxDecoration(
+                    color: Colors.red,
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Text(
+                    '$badgeCount',
+                    style: const TextStyle(
+                        color: Colors.white, fontWeight: FontWeight.bold, fontSize: 12),
+                  ),
+                ),
+                const SizedBox(width: 6),
+              ],
               Icon(Icons.chevron_right, color: scheme.onSurfaceVariant),
             ],
           ),

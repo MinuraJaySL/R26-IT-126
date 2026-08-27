@@ -2,6 +2,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import '../models/bin_model.dart';
 import '../models/bin_report.dart';
 import '../models/pickup_request.dart';
+import '../models/recovery_request.dart';
 
 class FirestoreService {
   final FirebaseFirestore _db = FirebaseFirestore.instance;
@@ -125,6 +126,63 @@ class FirestoreService {
       'resolutionNote': resolutionNote,
       'resolvedAt': FieldValue.serverTimestamp(),
     });
+  }
+
+  // Account recovery requests (submitted by a disabled account, resolved by
+  // admin — see AccountDisabledScreen / AdminRecoveryRequestsScreen).
+  Future<void> createRecoveryRequest(RecoveryRequest request) {
+    return _db
+        .collection('accountRecoveryRequests')
+        .doc(request.id)
+        .set(request.toMap());
+  }
+
+  Stream<List<RecoveryRequest>> watchOpenRecoveryRequests() {
+    return _db
+        .collection('accountRecoveryRequests')
+        .where('status', isEqualTo: 'open')
+        .snapshots()
+        .map((snap) {
+      final list = snap.docs.map(RecoveryRequest.fromFirestore).toList();
+      list.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+      return list;
+    });
+  }
+
+  Stream<List<RecoveryRequest>> watchResolvedRecoveryRequests() {
+    return _db
+        .collection('accountRecoveryRequests')
+        .where('status', isEqualTo: 'resolved')
+        .snapshots()
+        .map((snap) {
+      final list = snap.docs.map(RecoveryRequest.fromFirestore).toList();
+      list.sort((a, b) =>
+          (b.resolvedAt ?? b.createdAt).compareTo(a.resolvedAt ?? a.createdAt));
+      return list;
+    });
+  }
+
+  // Resolves the ticket and, if reenableAccount is true, flips the user's
+  // disabled flag off in the same batch — one admin action does both.
+  Future<void> resolveRecoveryRequest({
+    required String requestId,
+    required String uid,
+    required String adminId,
+    required String resolutionNote,
+    required bool reenableAccount,
+  }) {
+    final batch = _db.batch();
+    batch.update(_db.collection('accountRecoveryRequests').doc(requestId), {
+      'status': 'resolved',
+      'resolvedBy': adminId,
+      'resolutionNote': resolutionNote,
+      'reenabled': reenableAccount,
+      'resolvedAt': FieldValue.serverTimestamp(),
+    });
+    if (reenableAccount) {
+      batch.update(_db.collection('users').doc(uid), {'disabled': false});
+    }
+    return batch.commit();
   }
 
   // Driver GPS
