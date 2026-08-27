@@ -1,16 +1,47 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
+import '../../models/recovery_request.dart';
 import '../../providers/auth_provider.dart';
+import '../../services/firestore_service.dart';
 import '../../theme/app_colors.dart';
 import '../../widgets/gradient_background.dart';
 
-class AccountDisabledScreen extends StatelessWidget {
+class AccountDisabledScreen extends StatefulWidget {
   const AccountDisabledScreen({super.key});
 
-  Future<void> _signOutToLogin(BuildContext context) async {
+  @override
+  State<AccountDisabledScreen> createState() => _AccountDisabledScreenState();
+}
+
+class _AccountDisabledScreenState extends State<AccountDisabledScreen> {
+  RecoveryRequest? _deniedRequest;
+  bool _loadingNote = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadDeniedNote();
+  }
+
+  Future<void> _loadDeniedNote() async {
+    final uid = context.read<AuthProvider>().user?.uid;
+    if (uid == null) {
+      setState(() => _loadingNote = false);
+      return;
+    }
+    final denied = await FirestoreService().fetchLatestDeniedRequest(uid);
+    if (mounted) {
+      setState(() {
+        _deniedRequest = denied;
+        _loadingNote = false;
+      });
+    }
+  }
+
+  Future<void> _signOutToLogin() async {
     await context.read<AuthProvider>().signOut();
-    if (context.mounted) context.go('/login');
+    if (mounted) context.go('/login');
   }
 
   @override
@@ -67,6 +98,37 @@ class AccountDisabledScreen extends StatelessWidget {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.stretch,
                         children: [
+                          if (_loadingNote) ...[
+                            const Center(
+                              child: Padding(
+                                padding: EdgeInsets.symmetric(vertical: 12),
+                                child: SizedBox(
+                                  width: 20,
+                                  height: 20,
+                                  child: CircularProgressIndicator(strokeWidth: 2),
+                                ),
+                              ),
+                            ),
+                          ] else if (_deniedRequest?.resolutionNote != null) ...[
+                            const Text(
+                              'An administrator reviewed your request',
+                              style: TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w600,
+                                color: AppColors.textSubtitle,
+                              ),
+                            ),
+                            const SizedBox(height: 6),
+                            Text(
+                              _deniedRequest!.resolutionNote!,
+                              style: const TextStyle(
+                                fontSize: 15,
+                                color: AppColors.textHeading,
+                                height: 1.4,
+                              ),
+                            ),
+                            const SizedBox(height: 20),
+                          ],
                           SizedBox(
                             height: 50,
                             child: OutlinedButton.icon(
@@ -84,7 +146,7 @@ class AccountDisabledScreen extends StatelessWidget {
                           SizedBox(
                             height: 50,
                             child: ElevatedButton(
-                              onPressed: () => _signOutToLogin(context),
+                              onPressed: _signOutToLogin,
                               style: ElevatedButton.styleFrom(
                                 backgroundColor: AppColors.primaryDark,
                                 foregroundColor: Colors.white,

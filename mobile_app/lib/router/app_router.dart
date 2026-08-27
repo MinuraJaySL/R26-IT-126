@@ -8,6 +8,7 @@ import '../screens/auth/login_screen.dart';
 import '../screens/auth/register_screen.dart';
 import '../screens/auth/account_disabled_screen.dart';
 import '../screens/auth/account_recovery_request_screen.dart';
+import '../screens/auth/account_reenabled_screen.dart';
 import '../screens/resident/resident_dashboard.dart';
 import '../screens/resident/complete_profile_screen.dart';
 import '../screens/resident/flag_placement_screen.dart';
@@ -52,6 +53,13 @@ GoRouter buildRouter() {
         return onDisabledFlow ? null : '/account-disabled';
       }
 
+      // One-time notice after an admin re-enables this account — same
+      // gating trick, cleared by AccountReenabledScreen once seen.
+      if (loggedIn && auth.user!.pendingRecoveryNotice != null) {
+        final onNoticeScreen = state.matchedLocation == '/account-reenabled';
+        return onNoticeScreen ? null : '/account-reenabled';
+      }
+
       if (loggedIn && onAuth) {
         switch (auth.user!.role) {
           case UserRole.admin:
@@ -89,6 +97,10 @@ GoRouter buildRouter() {
       GoRoute(
         path: '/account-disabled/request',
         builder: (ctx, _) => const AccountRecoveryRequestScreen(),
+      ),
+      GoRoute(
+        path: '/account-reenabled',
+        builder: (ctx, _) => const AccountReenabledScreen(),
       ),
       GoRoute(path: '/resident', builder: (ctx, _) => const ResidentDashboard()),
       GoRoute(

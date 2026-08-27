@@ -180,9 +180,34 @@ class FirestoreService {
       'resolvedAt': FieldValue.serverTimestamp(),
     });
     if (reenableAccount) {
-      batch.update(_db.collection('users').doc(uid), {'disabled': false});
+      // pendingRecoveryNotice is only stamped on re-enable — a denial's
+      // note is read straight from the request doc instead (the account is
+      // still disabled, so AccountDisabledScreen shows it every attempt;
+      // no one-time notice needed for that case).
+      batch.update(_db.collection('users').doc(uid), {
+        'disabled': false,
+        'pendingRecoveryNotice': resolutionNote,
+      });
     }
     return batch.commit();
+  }
+
+  // One-time lookup (not a stream) for the AccountDisabledScreen to show
+  // why a still-disabled account's most recent recovery request was denied,
+  // if it was. Single equality filter + client-side sort avoids needing a
+  // composite index for uid+status+resolvedAt.
+  Future<RecoveryRequest?> fetchLatestDeniedRequest(String uid) async {
+    final snap = await _db
+        .collection('accountRecoveryRequests')
+        .where('uid', isEqualTo: uid)
+        .get();
+    final denied = snap.docs
+        .map(RecoveryRequest.fromFirestore)
+        .where((r) => r.status == RecoveryRequestStatus.resolved && r.reenabled == false)
+        .toList()
+      ..sort((a, b) =>
+          (b.resolvedAt ?? b.createdAt).compareTo(a.resolvedAt ?? a.createdAt));
+    return denied.isEmpty ? null : denied.first;
   }
 
   // Driver GPS

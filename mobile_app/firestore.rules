@@ -83,7 +83,9 @@ service cloud.firestore {
     // gate is what blocks them, not sign-in) may file exactly one recovery
     // request for itself; only admin can read or resolve it.
     match /accountRecoveryRequests/{requestId} {
-      allow read: if isAdmin();
+      // Admin reads any request (to resolve it); the submitter can read
+      // their own back (AccountDisabledScreen shows a denial's note).
+      allow read: if isSignedIn() && (isAdmin() || resource.data.uid == request.auth.uid);
       allow create: if isSignedIn() && request.resource.data.uid == request.auth.uid;
       allow update: if isAdmin();
       allow delete: if false;
