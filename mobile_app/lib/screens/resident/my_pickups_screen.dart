@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 import '../../models/pickup_request.dart';
 import '../../providers/auth_provider.dart';
 import '../../services/firestore_service.dart';
+import '../../services/notification_service.dart';
 
 class MyPickupsScreen extends StatefulWidget {
   const MyPickupsScreen({super.key});
@@ -310,9 +311,12 @@ class _RequestCard extends StatelessWidget {
                     child: ElevatedButton.icon(
                       icon: const Icon(Icons.check_circle, size: 18),
                       label: const Text('Handed Over'),
-                      onPressed: () => FirestoreService()
-                          .updateRequestStatus(
-                              request.id, RequestStatus.collected),
+                      onPressed: () async {
+                        await FirestoreService().updateRequestStatus(
+                            request.id, RequestStatus.collected);
+                        NotificationService().notifyEvent(
+                            'collected', request.id); // fire-and-forget
+                      },
                       style: ElevatedButton.styleFrom(
                         backgroundColor: Colors.green,
                         foregroundColor: Colors.white,
