@@ -22,6 +22,12 @@ class AuthService {
 
   Stream<User?> get authStateChanges => _auth.authStateChanges();
 
+  // A disabled account is still allowed to authenticate here — the router's
+  // redirect gate is what actually stops them, the same way the resident
+  // profile-completion gate works. That keeps them signed in just long
+  // enough to submit their own account-recovery request (see
+  // AccountDisabledScreen), which needs a real session so Firestore rules
+  // can verify request.auth.uid == the request's own uid.
   Future<AppUser?> signIn(String email, String password) async {
     final cred = await _auth.signInWithEmailAndPassword(
       email: email,

@@ -26,6 +26,7 @@ class AdminUserSummary {
     required this.role,
     required this.phone,
     required this.vehicleNumber,
+    required this.disabled,
   });
 
   final String uid;
@@ -34,6 +35,7 @@ class AdminUserSummary {
   final String role;
   final String phone;
   final String vehicleNumber;
+  final bool disabled;
 
   factory AdminUserSummary.fromDoc(String uid, Map<String, dynamic> data) {
     return AdminUserSummary(
@@ -43,6 +45,7 @@ class AdminUserSummary {
       role: (data['role'] as String?) ?? 'resident',
       phone: (data['phone'] as String?) ?? '',
       vehicleNumber: (data['vehicleNumber'] as String?) ?? '',
+      disabled: (data['disabled'] as bool?) ?? false,
     );
   }
 }
@@ -87,6 +90,14 @@ class AdminService {
       'phone': phone,
       'vehicleNumber': vehicleNumber,
     });
+  }
+
+  /// Disables/re-enables sign-in for a resident or driver account. Blocked
+  /// client-side at sign-in (AuthService) rather than deleting the account,
+  /// so it's reversible and doesn't orphan the person's pickup/report
+  /// history. Never called for admin accounts — see UserManagementScreen.
+  Future<void> setUserDisabled(String uid, bool disabled) {
+    return _db.collection('users').doc(uid).update({'disabled': disabled});
   }
 
   /// Calls the Worker's admin-only endpoint to create a driver account.

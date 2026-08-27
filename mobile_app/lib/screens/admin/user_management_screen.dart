@@ -21,7 +21,13 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
   }
 
   void _refresh() {
-    setState(() => _usersFuture = _adminService.fetchAllUsers());
+    // A block body, not an arrow function — `() => _usersFuture = future()`
+    // would make the closure's inferred return type Future (assignment
+    // expressions evaluate to the assigned value), which setState's
+    // debug-mode check rejects at runtime.
+    setState(() {
+      _usersFuture = _adminService.fetchAllUsers();
+    });
   }
 
   @override
@@ -143,68 +149,147 @@ class _UserTile extends StatelessWidget {
     }
   }
 
+  Future<void> _toggleDisabled(BuildContext context) async {
+    final disabling = !user.disabled;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: Text(disabling ? 'Disable This Account?' : 'Enable This Account?'),
+        content: Text(
+          disabling
+              ? '${user.email} will no longer be able to sign in until you re-enable their account.'
+              : '${user.email} will be able to sign in again.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(dialogContext, true),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: disabling ? Colors.red : Colors.green,
+              foregroundColor: Colors.white,
+            ),
+            child: Text(disabling ? 'Disable' : 'Enable'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+    try {
+      await AdminService().setUserDisabled(user.uid, disabling);
+      onEdited();
+    } catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red),
+        );
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final displayName = user.name.isNotEmpty ? user.name : user.email;
     final isDriver = user.role == 'driver';
+    final isAdmin = user.role == 'admin';
 
-    return InkWell(
-      borderRadius: BorderRadius.circular(16),
-      onTap: isDriver
-          ? () => showDialog(
-                context: context,
-                builder: (_) => _EditDriverDialog(user: user, onSaved: onEdited),
-              )
-          : null,
-      child: Container(
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: scheme.surfaceContainerHighest.withValues(alpha: 0.5),
-          borderRadius: BorderRadius.circular(16),
-        ),
-        child: Row(
-          children: [
-            CircleAvatar(
-              backgroundColor: _roleColor().withValues(alpha: 0.15),
-              child: Text(
-                displayName.isNotEmpty ? displayName[0].toUpperCase() : '?',
-                style: TextStyle(color: _roleColor(), fontWeight: FontWeight.bold),
-              ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(displayName, style: const TextStyle(fontWeight: FontWeight.w600)),
-                  const SizedBox(height: 2),
-                  Text(
-                    user.email,
-                    style: TextStyle(color: scheme.onSurfaceVariant, fontSize: 13),
-                  ),
-                ],
-              ),
-            ),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-              decoration: BoxDecoration(
-                color: _roleColor().withValues(alpha: 0.12),
-                borderRadius: BorderRadius.circular(999),
-              ),
-              child: Text(
-                user.role,
-                style: TextStyle(
-                  color: _roleColor(),
-                  fontWeight: FontWeight.w600,
-                  fontSize: 12,
+    return Opacity(
+      opacity: user.disabled ? 0.6 : 1,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(16),
+        onTap: isDriver
+            ? () => showDialog(
+                  context: context,
+                  builder: (_) => _EditDriverDialog(user: user, onSaved: onEdited),
+                )
+            : null,
+        child: Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: scheme.surfaceContainerHighest.withValues(alpha: 0.5),
+            borderRadius: BorderRadius.circular(16),
+          ),
+          child: Row(
+            children: [
+              CircleAvatar(
+                backgroundColor: _roleColor().withValues(alpha: 0.15),
+                child: Text(
+                  displayName.isNotEmpty ? displayName[0].toUpperCase() : '?',
+                  style: TextStyle(color: _roleColor(), fontWeight: FontWeight.bold),
                 ),
               ),
-            ),
-            if (isDriver) ...[
-              const SizedBox(width: 8),
-              Icon(Icons.edit_outlined, size: 18, color: scheme.onSurfaceVariant),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Flexible(
+                          child: Text(displayName,
+                              style: const TextStyle(fontWeight: FontWeight.w600),
+                              overflow: TextOverflow.ellipsis),
+                        ),
+                        if (user.disabled) ...[
+                          const SizedBox(width: 6),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                            decoration: BoxDecoration(
+                              color: Colors.red.withValues(alpha: 0.12),
+                              borderRadius: BorderRadius.circular(999),
+                            ),
+                            child: const Text(
+                              'DISABLED',
+                              style: TextStyle(
+                                  color: Colors.red, fontWeight: FontWeight.bold, fontSize: 10),
+                            ),
+                          ),
+                        ],
+                      ],
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      user.email,
+                      style: TextStyle(color: scheme.onSurfaceVariant, fontSize: 13),
+                    ),
+                  ],
+                ),
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                decoration: BoxDecoration(
+                  color: _roleColor().withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(999),
+                ),
+                child: Text(
+                  user.role,
+                  style: TextStyle(
+                    color: _roleColor(),
+                    fontWeight: FontWeight.w600,
+                    fontSize: 12,
+                  ),
+                ),
+              ),
+              if (isDriver) ...[
+                const SizedBox(width: 4),
+                Icon(Icons.edit_outlined, size: 18, color: scheme.onSurfaceVariant),
+              ],
+              if (!isAdmin) ...[
+                const SizedBox(width: 4),
+                IconButton(
+                  tooltip: user.disabled ? 'Enable account' : 'Disable account',
+                  icon: Icon(
+                    user.disabled ? Icons.lock_open : Icons.block,
+                    size: 20,
+                    color: user.disabled ? Colors.green : Colors.red,
+                  ),
+                  onPressed: () => _toggleDisabled(context),
+                ),
+              ],
             ],
-          ],
+          ),
         ),
       ),
     );

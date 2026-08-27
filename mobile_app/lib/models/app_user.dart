@@ -7,6 +7,7 @@ class AppUser {
   final String name;
   final String phone;
   final String vehicleNumber;
+  final bool disabled;
 
   AppUser({
     required this.uid,
@@ -15,6 +16,7 @@ class AppUser {
     this.name = '',
     this.phone = '',
     this.vehicleNumber = '',
+    this.disabled = false,
   });
 
   // Residents self-register with just email/password (see the OTP signup
@@ -33,6 +35,7 @@ class AppUser {
       name: data['name'] ?? '',
       phone: data['phone'] ?? '',
       vehicleNumber: data['vehicleNumber'] ?? '',
+      disabled: data['disabled'] ?? false,
     );
   }
 
@@ -44,6 +47,7 @@ class AppUser {
       name: name ?? this.name,
       phone: phone ?? this.phone,
       vehicleNumber: vehicleNumber,
+      disabled: disabled,
     );
   }
 }
