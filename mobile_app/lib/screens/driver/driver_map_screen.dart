@@ -10,6 +10,7 @@ import '../../services/firestore_service.dart';
 import '../../services/location_service.dart';
 import '../../services/road_route_service.dart';
 import '../../services/route_service.dart';
+import '../../widgets/map_recenter_button.dart';
 
 class DriverMapScreen extends StatefulWidget {
   const DriverMapScreen({super.key});
@@ -34,6 +35,10 @@ class _DriverMapScreenState extends State<DriverMapScreen> {
   bool _showRoute = false;
   bool _loadingRoute = false;
   List<LatLng> _roadPoints = [];
+
+  // Camera auto-follows the driver's live position until they manually pan
+  // the map, at which point it stops — the recenter button brings it back.
+  bool _autoFollow = true;
 
   // Throttle how often we push the driver's position to Firestore — the raw
   // GPS stream can fire far more often than that, and hammering one document
@@ -97,7 +102,7 @@ class _DriverMapScreenState extends State<DriverMapScreen> {
     _gpsSub = _locationService.positionStream().listen((pos) {
       final loc = LatLng(pos.latitude, pos.longitude);
       setState(() => _driverPos = loc);
-      _mapController.move(loc, _mapController.camera.zoom);
+      if (_autoFollow) _mapController.move(loc, _mapController.camera.zoom);
 
       final now = DateTime.now();
       if (_lastLocationUploadAt == null ||
@@ -110,6 +115,11 @@ class _DriverMapScreenState extends State<DriverMapScreen> {
 
       _checkOffRoute(pos.latitude, pos.longitude);
     });
+  }
+
+  void _recenter() {
+    setState(() => _autoFollow = true);
+    _mapController.move(_driverPos, _mapController.camera.zoom);
   }
 
   void _stopTrip() {
@@ -351,6 +361,11 @@ class _DriverMapScreenState extends State<DriverMapScreen> {
                 options: MapOptions(
                   initialCenter: _driverPos,
                   initialZoom: 15,
+                  onMapEvent: (event) {
+                    if (event.source != MapEventSource.mapController && _autoFollow) {
+                      setState(() => _autoFollow = false);
+                    }
+                  },
                 ),
                 children: [
                   TileLayer(
@@ -423,6 +438,11 @@ class _DriverMapScreenState extends State<DriverMapScreen> {
                     padding: const EdgeInsets.symmetric(vertical: 14),
                   ),
                 ),
+              ),
+              Positioned(
+                bottom: 84,
+                right: 16,
+                child: MapRecenterButton(onPressed: _recenter),
               ),
             ],
           );

@@ -5,6 +5,7 @@ import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
 import '../../services/location_service.dart';
 import '../../services/road_route_service.dart';
+import '../../widgets/map_recenter_button.dart';
 
 /// Live turn-by-turn-style navigation from the driver's current position to
 /// a single destination point — the shared mechanism behind "Navigate to
@@ -46,6 +47,10 @@ class _NavigateToPointScreenState extends State<NavigateToPointScreen> {
   bool _loadingRoute = true;
   bool _gotInitialFix = false;
 
+  // Camera auto-follows the driver's live position until they manually pan
+  // the map, at which point it stops — the recenter button brings it back.
+  bool _autoFollow = true;
+
   DateTime? _lastRerouteAt;
   static const double _offRouteThresholdM = 150;
   static const Duration _rerouteCooldown = Duration(seconds: 15);
@@ -75,9 +80,14 @@ class _NavigateToPointScreenState extends State<NavigateToPointScreen> {
       final loc = LatLng(pos.latitude, pos.longitude);
       if (!mounted) return;
       setState(() => _driverPos = loc);
-      _mapController.move(loc, _mapController.camera.zoom);
+      if (_autoFollow) _mapController.move(loc, _mapController.camera.zoom);
       _checkOffRoute();
     });
+  }
+
+  void _recenter() {
+    setState(() => _autoFollow = true);
+    _mapController.move(_driverPos, _mapController.camera.zoom);
   }
 
   Future<void> _fetchRoute() async {
@@ -172,6 +182,11 @@ class _NavigateToPointScreenState extends State<NavigateToPointScreen> {
             options: MapOptions(
               initialCenter: _driverPos,
               initialZoom: 15,
+              onMapEvent: (event) {
+                if (event.source != MapEventSource.mapController && _autoFollow) {
+                  setState(() => _autoFollow = false);
+                }
+              },
             ),
             children: [
               TileLayer(
@@ -215,6 +230,11 @@ class _NavigateToPointScreenState extends State<NavigateToPointScreen> {
               right: 12,
               child: LinearProgressIndicator(),
             ),
+          Positioned(
+            top: 60,
+            right: 16,
+            child: MapRecenterButton(color: widget.accentColor, onPressed: _recenter),
+          ),
           Positioned(
             left: 0,
             right: 0,

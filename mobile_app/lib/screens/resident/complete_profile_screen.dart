@@ -5,6 +5,7 @@ import '../../providers/auth_provider.dart';
 import '../../theme/app_colors.dart';
 import '../../widgets/gradient_background.dart';
 import '../../widgets/gradient_button.dart';
+import '../../widgets/confirm_logout_dialog.dart';
 import '../../widgets/styled_text_field.dart';
 
 final _phoneRegex = RegExp(r'^\+?[0-9]{7,15}$');
@@ -127,6 +128,8 @@ class _CompleteProfileScreenState extends State<CompleteProfileScreen> {
                     onPressed: _busy
                         ? null
                         : () async {
+                            final confirmed = await confirmLogout(context);
+                            if (!confirmed || !context.mounted) return;
                             await context.read<AuthProvider>().signOut();
                             if (context.mounted) context.go('/login');
                           },
