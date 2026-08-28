@@ -92,9 +92,16 @@ service cloud.firestore {
     }
 
     // Drivers publish their own live GPS position; any signed-in user may read it.
+    // `mode` is what residents' Track Truck filters on ('pickups' only) — a
+    // driver writing anything else there would silently vanish from tracking,
+    // so it's constrained here rather than trusted client-side.
     match /driverLocations/{driverId} {
       allow read: if isSignedIn();
-      allow write: if isSignedIn() && request.auth.uid == driverId;
+      allow create, update: if isSignedIn() && request.auth.uid == driverId &&
+        request.resource.data.mode in ['bins', 'pickups'] &&
+        request.resource.data.lat is number &&
+        request.resource.data.lng is number;
+      allow delete: if isSignedIn() && request.auth.uid == driverId;
     }
 
     // Signup email-verification codes. Only touched by Cloud Functions via
