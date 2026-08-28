@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:math';
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
@@ -10,6 +9,7 @@ import '../../providers/auth_provider.dart';
 import '../../services/firestore_service.dart';
 import '../../services/location_service.dart';
 import '../../services/road_route_service.dart';
+import '../../utils/geo_utils.dart';
 import '../../widgets/map_recenter_button.dart';
 
 /// Live route through active pickup requests only — the pickup-request
@@ -100,27 +100,6 @@ class _DriverPickupRouteScreenState extends State<DriverPickupRouteScreen> {
     super.dispose();
   }
 
-  double _haversine(double lat1, double lng1, double lat2, double lng2) {
-    const r = 6371000.0;
-    final dLat = (lat2 - lat1) * pi / 180;
-    final dLng = (lng2 - lng1) * pi / 180;
-    final a = sin(dLat / 2) * sin(dLat / 2) +
-        cos(lat1 * pi / 180) *
-            cos(lat2 * pi / 180) *
-            sin(dLng / 2) *
-            sin(dLng / 2);
-    return r * 2 * atan2(sqrt(a), sqrt(1 - a));
-  }
-
-  double _minDistanceToRoute(double lat, double lng, List<LatLng> routePoints) {
-    double minDist = double.infinity;
-    for (final p in routePoints) {
-      final d = _haversine(lat, lng, p.latitude, p.longitude);
-      if (d < minDist) minDist = d;
-    }
-    return minDist;
-  }
-
   void _checkOffRoute(double lat, double lng) {
     if (!_showRoute || _loadingRoute || _activeRequests.isEmpty) return;
     final routePoints = _buildRoutePoints();
@@ -131,7 +110,7 @@ class _DriverPickupRouteScreenState extends State<DriverPickupRouteScreen> {
         now.difference(_lastRerouteAt!) >= _rerouteCooldown;
     if (!cooldownElapsed) return;
 
-    if (_minDistanceToRoute(lat, lng, routePoints) > _offRouteThresholdM) {
+    if (minDistanceToRoute(LatLng(lat, lng), routePoints) > _offRouteThresholdM) {
       _lastRerouteAt = now;
       _suggestRoute();
     }
@@ -140,7 +119,7 @@ class _DriverPickupRouteScreenState extends State<DriverPickupRouteScreen> {
   void _checkProximity(double lat, double lng, String driverId) {
     for (final req in _activeRequests) {
       if (_arrivedIds.contains(req.id)) continue;
-      final dist = _haversine(lat, lng, req.lat, req.lng);
+      final dist = haversineMeters(lat, lng, req.lat, req.lng);
       if (dist <= _arrivalThresholdM) {
         _arrivedIds.add(req.id);
         _fs.markRequestArrived(req.id, driverId);
@@ -211,9 +190,9 @@ class _DriverPickupRouteScreenState extends State<DriverPickupRouteScreen> {
 
     while (remaining.isNotEmpty) {
       PickupRequest nearest = remaining[0];
-      double nearestDist = _haversine(curLat, curLng, nearest.lat, nearest.lng);
+      double nearestDist = haversineMeters(curLat, curLng, nearest.lat, nearest.lng);
       for (int i = 1; i < remaining.length; i++) {
-        final d = _haversine(curLat, curLng, remaining[i].lat, remaining[i].lng);
+        final d = haversineMeters(curLat, curLng, remaining[i].lat, remaining[i].lng);
         if (d < nearestDist) {
           nearestDist = d;
           nearest = remaining[i];
@@ -349,7 +328,7 @@ class _DriverPickupRouteScreenState extends State<DriverPickupRouteScreen> {
     int nearestIndex = 0;
     double nearestDist = double.infinity;
     for (int i = 0; i < fullRoute.length; i++) {
-      final d = _haversine(_driverPos.latitude, _driverPos.longitude,
+      final d = haversineMeters(_driverPos.latitude, _driverPos.longitude,
           fullRoute[i].latitude, fullRoute[i].longitude);
       if (d < nearestDist) {
         nearestDist = d;

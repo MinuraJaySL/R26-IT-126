@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:math';
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
@@ -11,6 +10,7 @@ import '../../services/firestore_service.dart';
 import '../../services/location_service.dart';
 import '../../services/road_route_service.dart';
 import '../../services/route_service.dart';
+import '../../utils/geo_utils.dart';
 import '../../widgets/map_recenter_button.dart';
 
 class DriverMapScreen extends StatefulWidget {
@@ -87,27 +87,6 @@ class _DriverMapScreenState extends State<DriverMapScreen> {
     super.dispose();
   }
 
-  double _haversine(double lat1, double lng1, double lat2, double lng2) {
-    const r = 6371000.0;
-    final dLat = (lat2 - lat1) * pi / 180;
-    final dLng = (lng2 - lng1) * pi / 180;
-    final a = sin(dLat / 2) * sin(dLat / 2) +
-        cos(lat1 * pi / 180) *
-            cos(lat2 * pi / 180) *
-            sin(dLng / 2) *
-            sin(dLng / 2);
-    return r * 2 * atan2(sqrt(a), sqrt(1 - a));
-  }
-
-  double _minDistanceToRoute(double lat, double lng, List<LatLng> routePoints) {
-    double minDist = double.infinity;
-    for (final p in routePoints) {
-      final d = _haversine(lat, lng, p.latitude, p.longitude);
-      if (d < minDist) minDist = d;
-    }
-    return minDist;
-  }
-
   void _checkOffRoute(double lat, double lng) {
     if (!_showRoute || _loadingRoute || _bins.isEmpty) return;
     final routePoints = _buildRoutePoints();
@@ -118,7 +97,7 @@ class _DriverMapScreenState extends State<DriverMapScreen> {
         now.difference(_lastRerouteAt!) >= _rerouteCooldown;
     if (!cooldownElapsed) return;
 
-    if (_minDistanceToRoute(lat, lng, routePoints) > _offRouteThresholdM) {
+    if (minDistanceToRoute(LatLng(lat, lng), routePoints) > _offRouteThresholdM) {
       _lastRerouteAt = now;
       _suggestRoute();
     }
@@ -337,7 +316,7 @@ class _DriverMapScreenState extends State<DriverMapScreen> {
     int nearestIndex = 0;
     double nearestDist = double.infinity;
     for (int i = 0; i < fullRoute.length; i++) {
-      final d = _haversine(_driverPos.latitude, _driverPos.longitude,
+      final d = haversineMeters(_driverPos.latitude, _driverPos.longitude,
           fullRoute[i].latitude, fullRoute[i].longitude);
       if (d < nearestDist) {
         nearestDist = d;

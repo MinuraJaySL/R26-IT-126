@@ -1,5 +1,5 @@
-import 'dart:math';
 import '../models/bin_model.dart';
+import '../utils/geo_utils.dart';
 
 class RouteService {
   /// Returns bins in optimised collection order:
@@ -65,9 +65,9 @@ class RouteService {
     while (remaining.isNotEmpty) {
       // Find the closest bin to current position
       SmartBin nearest = remaining[0];
-      double nearestDist = _dist(curLat, curLng, nearest.lat, nearest.lng);
+      double nearestDist = haversineMeters(curLat, curLng, nearest.lat, nearest.lng);
       for (int i = 1; i < remaining.length; i++) {
-        final d = _dist(curLat, curLng, remaining[i].lat, remaining[i].lng);
+        final d = haversineMeters(curLat, curLng, remaining[i].lat, remaining[i].lng);
         if (d < nearestDist) {
           nearestDist = d;
           nearest = remaining[i];
@@ -81,24 +81,12 @@ class RouteService {
     return ordered;
   }
 
-  /// Haversine distance in metres between two lat/lng points.
-  double _dist(double lat1, double lng1, double lat2, double lng2) {
-    const r = 6371000.0;
-    final dLat = _rad(lat2 - lat1);
-    final dLng = _rad(lng2 - lng1);
-    final a = sin(dLat / 2) * sin(dLat / 2) +
-        cos(_rad(lat1)) * cos(_rad(lat2)) * sin(dLng / 2) * sin(dLng / 2);
-    return r * 2 * atan2(sqrt(a), sqrt(1 - a));
-  }
-
-  double _rad(double deg) => deg * pi / 180;
-
   /// Total straight-line route distance in metres (for the snackbar summary).
   double totalDistance(List<SmartBin> route, double startLat, double startLng) {
     if (route.isEmpty) return 0;
-    double total = _dist(startLat, startLng, route.first.lat, route.first.lng);
+    double total = haversineMeters(startLat, startLng, route.first.lat, route.first.lng);
     for (int i = 0; i < route.length - 1; i++) {
-      total += _dist(route[i].lat, route[i].lng, route[i + 1].lat, route[i + 1].lng);
+      total += haversineMeters(route[i].lat, route[i].lng, route[i + 1].lat, route[i + 1].lng);
     }
     return total;
   }
