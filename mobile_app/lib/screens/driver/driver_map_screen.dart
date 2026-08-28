@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:math';
+import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
@@ -46,6 +47,13 @@ class _DriverMapScreenState extends State<DriverMapScreen> {
   DateTime? _lastLocationUploadAt;
   static const Duration _locationUploadInterval = Duration(seconds: 3);
 
+  // Firestore's offline cache makes a location write "succeed" locally even
+  // with no network, so upload failures never surface. Watch the device's
+  // actual network state instead — this is what genuinely predicts whether
+  // the driver's position is reaching anyone tracking them.
+  bool _hasConnectivityIssue = false;
+  StreamSubscription<List<ConnectivityResult>>? _connectivitySub;
+
   // Auto-reroute when the driver strays this far from the displayed route
   // (e.g. takes a different road) — mirrors Google Maps' off-route recalc.
   DateTime? _lastRerouteAt;
@@ -53,8 +61,28 @@ class _DriverMapScreenState extends State<DriverMapScreen> {
   static const Duration _rerouteCooldown = Duration(seconds: 15);
 
   @override
+  void initState() {
+    super.initState();
+    Connectivity().checkConnectivity().then((result) {
+      if (mounted) {
+        setState(() => _hasConnectivityIssue = _isOffline(result));
+      }
+    });
+    _connectivitySub =
+        Connectivity().onConnectivityChanged.listen((result) {
+      if (mounted) {
+        setState(() => _hasConnectivityIssue = _isOffline(result));
+      }
+    });
+  }
+
+  bool _isOffline(List<ConnectivityResult> result) =>
+      result.every((r) => r == ConnectivityResult.none);
+
+  @override
   void dispose() {
     _gpsSub?.cancel();
+    _connectivitySub?.cancel();
     _mapController.dispose();
     super.dispose();
   }
@@ -386,9 +414,31 @@ class _DriverMapScreenState extends State<DriverMapScreen> {
                   MarkerLayer(markers: markers),
                 ],
               ),
+              if (_tripActive && _hasConnectivityIssue)
+                Positioned(
+                  top: 0,
+                  left: 0,
+                  right: 0,
+                  child: Container(
+                    color: Colors.orange,
+                    padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 12),
+                    child: const Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(Icons.wifi_off, size: 16, color: Colors.white),
+                        SizedBox(width: 8),
+                        Text(
+                          'Location not updating — check your connection',
+                          style: TextStyle(
+                              color: Colors.white, fontSize: 12, fontWeight: FontWeight.w600),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
               // Legend
               Positioned(
-                top: 12,
+                top: (_tripActive && _hasConnectivityIssue) ? 48 : 12,
                 left: 12,
                 child: Container(
                   padding: const EdgeInsets.all(8),
