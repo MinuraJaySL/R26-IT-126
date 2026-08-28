@@ -102,5 +102,12 @@ service cloud.firestore {
     match /emailVerifications/{email} {
       allow read, write: if false;
     }
+
+    // IP-based rate-limit counters for /request-code. Same reasoning as
+    // emailVerifications above — only the Worker's service-account token
+    // (which bypasses these rules) ever touches this collection.
+    match /rateLimits/{ip} {
+      allow read, write: if false;
+    }
   }
 }
