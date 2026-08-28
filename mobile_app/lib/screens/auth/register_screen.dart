@@ -72,9 +72,24 @@ class _RegisterScreenState extends State<RegisterScreen>
   }
 
   void _showError(String message) {
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(SnackBar(content: Text(message)));
+    showDialog(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        icon: const Icon(Icons.error_outline, color: AppColors.error, size: 44),
+        title: const Text('Something Went Wrong'),
+        content: Text(message, textAlign: TextAlign.center),
+        actions: [
+          ElevatedButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.primaryDark,
+              foregroundColor: Colors.white,
+            ),
+            child: const Text('OK'),
+          ),
+        ],
+      ),
+    );
   }
 
   Future<void> _sendCode() async {

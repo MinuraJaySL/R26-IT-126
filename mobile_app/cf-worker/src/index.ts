@@ -50,6 +50,17 @@ const MAX_SENDS_PER_WINDOW = 5;
 const SEND_WINDOW_MINUTES = 60;
 const VERIFIED_GRACE_MINUTES = 15;
 
+// The per-email limit above (MAX_SENDS_PER_WINDOW) does nothing against an
+// attacker who simply never reuses the same email twice — this endpoint is
+// unauthenticated by design (it's step 1 of signup), so nothing else stops
+// a script from blasting many different emails to burn through the EmailJS
+// send quota or harass strangers with unsolicited codes. This caps it by
+// source IP instead, independent of which email each call uses. Generous
+// enough that a household sharing one IP, or several people behind one
+// mobile carrier's NAT, won't hit it during normal signup.
+const IP_RATE_LIMIT_MAX = 20;
+const IP_RATE_LIMIT_WINDOW_MINUTES = 60;
+
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const CODE_RE = /^\d{6}$/;
 
@@ -571,6 +582,43 @@ async function sendDriverCredentialsEmail(
 }
 
 // ---------------------------------------------------------------------------
+// IP-based rate limiting for /request-code — see IP_RATE_LIMIT_MAX above for
+// why the per-email limit alone isn't real protection. Same windowed-counter
+// shape as the per-email logic in handleRequestCode, just keyed by IP in its
+// own collection. Firestore rules lock this collection to `false` for every
+// client the same way emailVerifications is — only this Worker's
+// service-account token (which bypasses rules entirely) ever touches it.
+// ---------------------------------------------------------------------------
+
+async function checkIpRateLimit(env: Env, token: string, ip: string): Promise<void> {
+  const path = `rateLimits/${encodeURIComponent(ip)}`;
+  const existing = await firestoreGet(env, token, path);
+  const now = Date.now();
+
+  let windowStart = now;
+  let count = 0;
+
+  if (existing) {
+    const existingWindowStart = existing.windowStart as number | null;
+    if (existingWindowStart && now - existingWindowStart < IP_RATE_LIMIT_WINDOW_MINUTES * 60_000) {
+      windowStart = existingWindowStart;
+      count = (existing.count as number) ?? 0;
+      if (count >= IP_RATE_LIMIT_MAX) {
+        throw new ApiError("Too many requests from this network. Please try again later.", 429);
+      }
+    }
+  }
+
+  await firestoreWrite(
+    env,
+    token,
+    path,
+    { windowStart: new Date(windowStart), count: count + 1 },
+    false // full overwrite — same reasoning as the per-email window below
+  );
+}
+
+// ---------------------------------------------------------------------------
 // Push notifications (FCM HTTP v1) — this app has no Cloud Functions, so
 // there is no "watch Firestore and react" trigger. The client explicitly
 // asks for a push at the moment something notification-worthy happens (see
@@ -609,12 +657,19 @@ async function sendPushNotification(
 
 /**
  * POST /request-code  { email }
- * Validates the email, refuses if an account already exists, rate-limits
- * resends, generates the 6-digit code, stores only its salted hash in
- * Firestore (never the plaintext code), and emails the plaintext code to
- * the user via EmailJS. The client only ever learns "ok: true".
+ * IP-rate-limited first (see checkIpRateLimit — the per-email limit below
+ * alone is not real abuse protection, since nothing stops a script from
+ * simply never reusing an email). Then validates the email, refuses if an
+ * account already exists, rate-limits resends, generates the 6-digit code,
+ * stores only its salted hash in Firestore (never the plaintext code), and
+ * emails the plaintext code to the user via EmailJS. The client only ever
+ * learns "ok: true".
  */
 async function handleRequestCode(req: Request, env: Env): Promise<Response> {
+  const token = await getGoogleAccessToken(env);
+  const ip = req.headers.get("CF-Connecting-IP") ?? "unknown";
+  await checkIpRateLimit(env, token, ip);
+
   const body = (await req.json()) as { email?: string };
   const email = normalizeEmail(body.email);
 
@@ -625,7 +680,6 @@ async function handleRequestCode(req: Request, env: Env): Promise<Response> {
     );
   }
 
-  const token = await getGoogleAccessToken(env);
   const path = `emailVerifications/${encodeURIComponent(email)}`;
   const existing = await firestoreGet(env, token, path);
 
