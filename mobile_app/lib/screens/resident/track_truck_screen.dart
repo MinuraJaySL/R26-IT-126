@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
@@ -7,6 +6,7 @@ import '../../models/pickup_request.dart';
 import '../../services/firestore_service.dart';
 import '../../services/location_service.dart';
 import '../../services/road_route_service.dart';
+import '../../utils/geo_utils.dart';
 import '../../widgets/map_recenter_button.dart';
 
 // Same fallback used by Flag Placement / the driver map when GPS isn't
@@ -98,27 +98,6 @@ class _TrackTruckScreenState extends State<TrackTruckScreen> {
     }).toList();
   }
 
-  double _haversine(LatLng a, LatLng b) {
-    const r = 6371000.0;
-    final dLat = (b.latitude - a.latitude) * pi / 180;
-    final dLng = (b.longitude - a.longitude) * pi / 180;
-    final x = sin(dLat / 2) * sin(dLat / 2) +
-        cos(a.latitude * pi / 180) *
-            cos(b.latitude * pi / 180) *
-            sin(dLng / 2) *
-            sin(dLng / 2);
-    return r * 2 * atan2(sqrt(x), sqrt(1 - x));
-  }
-
-  double _minDistanceToRoute(LatLng point, List<LatLng> route) {
-    double minDist = double.infinity;
-    for (final p in route) {
-      final d = _haversine(point, p);
-      if (d < minDist) minDist = d;
-    }
-    return minDist;
-  }
-
   Map<String, dynamic>? _driverById(String id) {
     for (final d in _liveDrivers) {
       if (d['driverId'] == id) return d;
@@ -148,10 +127,10 @@ class _TrackTruckScreenState extends State<TrackTruckScreen> {
     }
 
     String nearestId = drivers.first['driverId'] as String;
-    double nearestDist = _haversine(
+    double nearestDist = haversineLatLng(
         pickupPoint, LatLng(drivers.first['lat'], drivers.first['lng']));
     for (final d in drivers.skip(1)) {
-      final dist = _haversine(pickupPoint, LatLng(d['lat'], d['lng']));
+      final dist = haversineLatLng(pickupPoint, LatLng(d['lat'], d['lng']));
       if (dist < nearestDist) {
         nearestDist = dist;
         nearestId = d['driverId'] as String;
@@ -176,7 +155,7 @@ class _TrackTruckScreenState extends State<TrackTruckScreen> {
       return;
     }
 
-    final trackedDist = _haversine(
+    final trackedDist = haversineLatLng(
         pickupPoint, LatLng(trackedDriver['lat'], trackedDriver['lng']));
     final closerByMargin = (trackedDist - nearestDist) > _switchMarginM;
     if (closerByMargin && _cooldownElapsed) {
@@ -214,7 +193,7 @@ class _TrackTruckScreenState extends State<TrackTruckScreen> {
     final driver = _driverById(_trackedDriverId!);
     if (driver == null) return;
     final driverPos = LatLng(driver['lat'], driver['lng']);
-    if (_minDistanceToRoute(driverPos, _roadPoints) > _offRouteThresholdM) {
+    if (minDistanceToRoute(driverPos, _roadPoints) > _offRouteThresholdM) {
       _switchTrackedDriver(_trackedDriverId!, pickupPoint);
     }
   }
@@ -226,7 +205,7 @@ class _TrackTruckScreenState extends State<TrackTruckScreen> {
     int nearestIndex = 0;
     double nearestDist = double.infinity;
     for (int i = 0; i < _roadPoints.length; i++) {
-      final d = _haversine(driverPos, _roadPoints[i]);
+      final d = haversineLatLng(driverPos, _roadPoints[i]);
       if (d < nearestDist) {
         nearestDist = d;
         nearestIndex = i;
@@ -236,10 +215,10 @@ class _TrackTruckScreenState extends State<TrackTruckScreen> {
   }
 
   double _remainingDistanceM(List<LatLng> visibleRoute, LatLng driverPos, LatLng destination) {
-    if (visibleRoute.length < 2) return _haversine(driverPos, destination);
+    if (visibleRoute.length < 2) return haversineLatLng(driverPos, destination);
     double total = 0;
     for (int i = 0; i < visibleRoute.length - 1; i++) {
-      total += _haversine(visibleRoute[i], visibleRoute[i + 1]);
+      total += haversineLatLng(visibleRoute[i], visibleRoute[i + 1]);
     }
     return total;
   }

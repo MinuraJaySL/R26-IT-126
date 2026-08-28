@@ -1,7 +1,7 @@
 import 'dart:convert';
-import 'dart:math';
 import 'package:http/http.dart' as http;
 import 'package:latlong2/latlong.dart';
+import '../utils/geo_utils.dart';
 
 class RoadRouteService {
   static const _base = 'https://router.project-osrm.org/route/v1/driving';
@@ -72,23 +72,12 @@ class RoadRouteService {
     int best = 0;
     double bestDist = double.infinity;
     for (int i = 0; i < points.length; i++) {
-      final d = _dist(points[i], target);
+      final d = haversineLatLng(points[i], target);
       if (d < bestDist) {
         bestDist = d;
         best = i;
       }
     }
     return best;
-  }
-
-  double _dist(LatLng a, LatLng b) {
-    final dLat = (b.latitude - a.latitude) * pi / 180;
-    final dLng = (b.longitude - a.longitude) * pi / 180;
-    final x = sin(dLat / 2) * sin(dLat / 2) +
-        cos(a.latitude * pi / 180) *
-            cos(b.latitude * pi / 180) *
-            sin(dLng / 2) *
-            sin(dLng / 2);
-    return 6371000 * 2 * atan2(sqrt(x), sqrt(1 - x));
   }
 }
