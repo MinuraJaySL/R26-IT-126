@@ -2,3 +2,8 @@ node_modules/
 .wrangler/
 .dev.vars
 *.log
+
+# Local curl test scripts for /bin-status — contain the real
+# BIN_DEVICE_SECRET in plain text, never commit these.
+test-bin*.ps1
+test-bin*.json

@@ -7,3 +7,9 @@ FIREBASE_SERVICE_ACCOUNT_KEY={"type":"service_account","project_id":"...","priva
 
 # EmailJS -> Account -> API Keys -> Private Key
 EMAILJS_PRIVATE_KEY=your_emailjs_private_key
+
+# Shared secret the IoT bin devices (ESP32) send in the X-Device-Secret
+# header to /bin-status. Make up any long random string — this isn't tied
+# to any external service, just a password only this Worker and the
+# devices know.
+BIN_DEVICE_SECRET=choose_a_long_random_string

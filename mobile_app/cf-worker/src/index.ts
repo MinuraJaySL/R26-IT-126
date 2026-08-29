@@ -13,11 +13,11 @@
  * three steps below server-side; do not add an endpoint that returns the
  * plaintext code or the Firestore document contents to the client.
  *
- * Five endpoints: three mirroring the three-step Flutter sign-up flow, one
+ * Six endpoints: three mirroring the three-step Flutter sign-up flow, one
  * for admin-driven driver account creation, one for sending push
  * notifications (this app has no Cloud Functions, so there's no database
  * trigger — the client explicitly asks for a push at the moment a
- * notification-worthy event happens):
+ * notification-worthy event happens), and one for IoT bin devices:
  *   POST /request-code          — step 1: email in, verification code emailed out
  *   POST /confirm-code          — step 2: code in, verified flag set server-side
  *   POST /complete-registration — step 3: password in, Firebase Auth account created
@@ -28,6 +28,10 @@
  *   POST /notify                — sends a push for one of 5 known events; the client
  *                                 supplies only an event name + doc id, never the
  *                                 notification text (see handleNotify for why)
+ *   POST /bin-status             — an ESP32 bin device reports critical/normal fill
+ *                                 or gas status; authenticated with a shared device
+ *                                 secret (not a Firebase ID token — devices have no
+ *                                 Firebase Auth identity of their own)
  */
 
 export interface Env {
@@ -40,6 +44,7 @@ export interface Env {
   // Secrets — set with `wrangler secret put <NAME>`, never committed.
   FIREBASE_SERVICE_ACCOUNT_KEY: string;
   EMAILJS_PRIVATE_KEY: string;
+  BIN_DEVICE_SECRET: string;
 }
 
 const CODE_LENGTH = 6;
@@ -260,6 +265,7 @@ async function getGoogleAccessToken(env: Env): Promise<string> {
 type FirestoreValue =
   | { stringValue: string }
   | { integerValue: string }
+  | { doubleValue: number }
   | { booleanValue: boolean }
   | { timestampValue: string }
   | { nullValue: null };
@@ -269,8 +275,15 @@ function toFields(obj: Record<string, string | number | boolean | Date | null>) 
   for (const [key, value] of Object.entries(obj)) {
     if (value === null) fields[key] = { nullValue: null };
     else if (typeof value === "string") fields[key] = { stringValue: value };
-    else if (typeof value === "number") fields[key] = { integerValue: String(value) };
-    else if (typeof value === "boolean") fields[key] = { booleanValue: value };
+    else if (typeof value === "number") {
+      // Firestore's integerValue must be a whole number — every prior use of
+      // this helper only ever wrote counts (always whole), so this split
+      // wasn't needed until bin coordinates (lat/lng, genuinely fractional)
+      // started going through it.
+      fields[key] = Number.isInteger(value)
+        ? { integerValue: String(value) }
+        : { doubleValue: value };
+    } else if (typeof value === "boolean") fields[key] = { booleanValue: value };
     else if (value instanceof Date) fields[key] = { timestampValue: value.toISOString() };
   }
   return fields;
@@ -282,6 +295,7 @@ function fromFields(fields: Record<string, FirestoreValue> | undefined) {
   for (const [key, v] of Object.entries(fields)) {
     if ("stringValue" in v) obj[key] = v.stringValue;
     else if ("integerValue" in v) obj[key] = Number(v.integerValue);
+    else if ("doubleValue" in v) obj[key] = v.doubleValue;
     else if ("booleanValue" in v) obj[key] = v.booleanValue;
     else if ("timestampValue" in v) obj[key] = Date.parse(v.timestampValue);
     else obj[key] = null;
@@ -989,6 +1003,77 @@ async function handleNotify(req: Request, env: Env): Promise<Response> {
   return json({ ok: true });
 }
 
+/**
+ * POST /bin-status  { deviceId, status, lat, lng }
+ * Header: X-Device-Secret
+ * Called by IoT bin devices (ESP32), not the Flutter app — reports a
+ * fill-level/gas-sensor critical state. Authenticated with a single shared
+ * secret rather than a Firebase ID token, since devices have no Firebase
+ * Auth identity of their own.
+ *
+ * Only ever-critical bins are stored: the bins/{deviceId} doc is created
+ * the moment a device first reports critical, stamped with criticalSince
+ * so the app can show how long it's been waiting — a repeat "critical"
+ * report is a no-op, deliberately, so it never resets that timer. The doc
+ * is deleted the instant the device reports normal again. This is a
+ * safety net alongside the driver's own "Mark Collected" action in the
+ * app — whichever happens first clears the bin from the map.
+ */
+async function handleBinStatus(req: Request, env: Env): Promise<Response> {
+  const deviceSecret = req.headers.get("X-Device-Secret") ?? "";
+  if (!env.BIN_DEVICE_SECRET || !safeEqual(deviceSecret, env.BIN_DEVICE_SECRET)) {
+    throw new ApiError("Unauthorized.", 401);
+  }
+
+  const body = (await req.json()) as {
+    deviceId?: string;
+    status?: string;
+    lat?: number;
+    lng?: number;
+  };
+
+  const deviceId = String(body.deviceId ?? "").trim();
+  if (!deviceId) throw new ApiError("Missing deviceId.", 400);
+  if (body.status !== "critical" && body.status !== "normal") {
+    throw new ApiError("status must be 'critical' or 'normal'.", 400);
+  }
+  const lat = Number(body.lat);
+  const lng = Number(body.lng);
+  if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
+    throw new ApiError("Missing or invalid lat/lng.", 400);
+  }
+
+  // Visible in `wrangler tail` regardless of what happens below — the
+  // simplest possible confirmation that a device's report actually reached
+  // this Worker.
+  console.log(`[bin-status] device=${deviceId} status=${body.status} lat=${lat} lng=${lng}`);
+
+  const token = await getGoogleAccessToken(env);
+  const path = `bins/${encodeURIComponent(deviceId)}`;
+  const existing = await firestoreGet(env, token, path);
+
+  if (body.status === "critical") {
+    if (!existing) {
+      // priority: 'red' is stamped explicitly — the app's SmartBin model
+      // defaults a missing priority field to 'green' (a leftover from the
+      // old three-tier system), so leaving it out would silently mis-color
+      // every bin this endpoint creates.
+      await firestoreWrite(
+        env,
+        token,
+        path,
+        { lat, lng, priority: "red", criticalSince: new Date() },
+        false
+      );
+    }
+    // Already critical — no-op, so a repeat report doesn't reset the timer.
+  } else if (existing) {
+    await firestoreDelete(env, token, path);
+  }
+
+  return json({ ok: true });
+}
+
 // ---------------------------------------------------------------------------
 // Router
 // ---------------------------------------------------------------------------
@@ -1015,6 +1100,8 @@ export default {
           return await handleCreateDriver(req, env);
         case "/notify":
           return await handleNotify(req, env);
+        case "/bin-status":
+          return await handleBinStatus(req, env);
         default:
           return errorJson("Not found.", 404);
       }

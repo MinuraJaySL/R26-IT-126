@@ -2,17 +2,18 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 
 enum BinPriority { red, yellow, green }
 
-enum MethaneStatus { normal, elevated, high }
-
+// Fill-level/methane readings and toMap() were removed — bins are no longer
+// created from mock data or written by the app at all. Every document in
+// this collection now comes from the Worker's /bin-status endpoint, which
+// only ever reports a bin once it's already critical (see cf-worker), so
+// there's nothing left to display but where it is and how long it's waited.
 class SmartBin {
   final String id;
   final String label;
   final double lat;
   final double lng;
   final BinPriority priority;
-  final MethaneStatus methaneStatus;
-  final double fillPercent;
-  final DateTime lastUpdated;
+  final DateTime? criticalSince;
 
   SmartBin({
     required this.id,
@@ -20,9 +21,7 @@ class SmartBin {
     required this.lat,
     required this.lng,
     required this.priority,
-    required this.methaneStatus,
-    required this.fillPercent,
-    required this.lastUpdated,
+    this.criticalSince,
   });
 
   factory SmartBin.fromFirestore(DocumentSnapshot doc) {
@@ -33,24 +32,10 @@ class SmartBin {
       lat: (d['lat'] as num).toDouble(),
       lng: (d['lng'] as num).toDouble(),
       priority: BinPriority.values.firstWhere(
-        (e) => e.name == (d['priority'] ?? 'green'),
-        orElse: () => BinPriority.green,
+        (e) => e.name == (d['priority'] ?? 'red'),
+        orElse: () => BinPriority.red,
       ),
-      methaneStatus: MethaneStatus.values.firstWhere(
-        (e) => e.name == (d['methaneStatus'] ?? 'normal'),
-        orElse: () => MethaneStatus.normal,
-      ),
-      fillPercent: (d['fillPercent'] as num?)?.toDouble() ?? 0.0,
-      lastUpdated: (d['lastUpdated'] as Timestamp?)?.toDate() ?? DateTime.now(),
+      criticalSince: (d['criticalSince'] as Timestamp?)?.toDate(),
     );
   }
-
-  Map<String, dynamic> toMap() => {
-        'lat': lat,
-        'lng': lng,
-        'priority': priority.name,
-        'methaneStatus': methaneStatus.name,
-        'fillPercent': fillPercent,
-        'lastUpdated': Timestamp.fromDate(lastUpdated),
-      };
 }

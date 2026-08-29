@@ -17,6 +17,16 @@ class FirestoreService {
         );
   }
 
+  // Driver confirms a critical bin has been emptied. Deletes the doc rather
+  // than flipping a status flag — since only critical bins are ever stored
+  // (see the Worker's /bin-status endpoint), a collected bin has nothing
+  // left to represent. This is the primary way a bin clears from the map;
+  // the device itself reporting "normal" again is the safety-net fallback
+  // in case a driver forgets to tap this.
+  Future<void> markBinCollected(String binId) {
+    return _db.collection('bins').doc(binId).delete();
+  }
+
   // Pickup requests
   Future<void> createPickupRequest(PickupRequest req) {
     return _db.collection('pickupRequests').doc(req.id).set(req.toMap());
