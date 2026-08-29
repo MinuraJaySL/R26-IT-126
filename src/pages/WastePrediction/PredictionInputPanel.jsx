@@ -305,7 +305,7 @@ export default function PredictionInputPanel({ onPredict, loading }) {
                   Rainfall Forecast
                 </h3>
                 <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
-                  {liveData ? 'Open-Meteo Live API' : 'Historical Monthly Average'}
+                  {liveData ? 'Open-Meteo Live API' : 'Weekly Average'}
                 </p>
               </div>
             </div>
@@ -319,13 +319,13 @@ export default function PredictionInputPanel({ onPredict, loading }) {
             <div className="flex flex-col items-center justify-center py-8">
               <Loader2 size={32} className="animate-spin text-cyan-500" />
               <p className="mt-3 text-xs font-medium" style={{ color: 'var(--text-muted)' }}>
-                {liveData ? 'Fetching live forecast...' : 'Loading historical average...'}
+                {liveData ? 'Fetching live forecast...' : 'Loading...'}
               </p>
             </div>
           ) : (
             <>
               {/* Source badge */}
-              <div className={`mb-3 inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-[10px] font-bold ${
+              {/* <div className={`mb-3 inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-[10px] font-bold ${
                 rainfall?.sourceType === 'forecast'
                   ? 'bg-emerald-500/10 text-emerald-500'
                   : rainfall?.sourceType === 'historical_actual'
@@ -334,7 +334,7 @@ export default function PredictionInputPanel({ onPredict, loading }) {
               }`}>
                 {rainfall?.sourceType === 'forecast' || rainfall?.sourceType === 'historical_actual' ? <CheckCircle size={10} /> : <AlertCircle size={10} />}
                 {rainfall?.source}
-              </div>
+              </div> */}
 
               {/* Total rainfall hero */}
               <div className="mb-4 rounded-xl p-4 text-center" style={{ background: 'linear-gradient(135deg, rgba(6,182,212,0.1), rgba(6,182,212,0.05))' }}>

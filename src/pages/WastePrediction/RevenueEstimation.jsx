@@ -245,7 +245,7 @@ export default function RevenueEstimation({ composition, prediction }) {
   return (
     <div className="space-y-6">
       {/* ── TOP HERO CARD ──────────────────────────────────────────────────────── */}
-      <AnimatedCard delay={0.05} hover={false} className="overflow-hidden relative" style={{ background: 'linear-gradient(135deg, #064e3b, #047857, #0f766e)' }}>
+      <AnimatedCard delay={0.05} hover={false} className="overflow-hidden relative" style={{ background: 'linear-gradient(135deg, #2d3b2d, #4a5d43, #6b7c5a)' }}>
         <div className="flex flex-wrap items-center justify-between gap-4 text-white">
           <div className="flex items-center gap-3.5">
             <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-white/10 backdrop-blur-md shadow-inner text-emerald-300">
