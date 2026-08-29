@@ -127,9 +127,6 @@ export default function PredictionInputPanel({ onPredict, loading }) {
               <h3 className="text-lg font-bold" style={{ color: 'var(--text-primary)' }}>
                 Kalutara Municipal Council
               </h3>
-              <p className="text-xs" style={{ color: 'var(--text-secondary)' }}>
-                Weekly waste prediction powered by XGBoost ML models
-              </p>
             </div>
           </div>
           <div className="flex items-center gap-5">
@@ -392,9 +389,6 @@ export default function PredictionInputPanel({ onPredict, loading }) {
               <h3 className="text-base font-bold" style={{ color: 'var(--text-primary)' }}>
                 Previous Week Data
               </h3>
-              <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
-                Auto-loaded from historical dataset
-              </p>
             </div>
           </div>
 
