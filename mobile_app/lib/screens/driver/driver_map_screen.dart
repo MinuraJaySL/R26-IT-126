@@ -431,10 +431,7 @@ class _DriverMapScreenState extends State<DriverMapScreen> {
                   child: const Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      _LegendItem(color: Colors.red, label: 'Urgent (Red)'),
-                      _LegendItem(
-                          color: Colors.amber, label: 'Medium (Yellow)'),
-                      _LegendItem(color: Colors.green, label: 'Low (Green)'),
+                      _LegendItem(color: Colors.red, label: 'Critical Bin'),
                       _LegendItem(
                           color: Colors.indigo, label: 'Driver (You)'),
                     ],
