@@ -413,6 +413,35 @@ class _DriverMapScreenState extends State<DriverMapScreen> {
         stream: _fs.watchBins(),
         builder: (context, snap) {
           _bins = snap.data ?? [];
+
+          // Markers are already reactive (rebuilt from _bins every time this
+          // stream fires), but the suggested route/polyline is a snapshot
+          // taken once when "Suggest Route" was tapped — nothing recomputes
+          // it on its own. If a bin the route was passing through just
+          // disappeared (collected, or cleared by the device), refresh the
+          // route so it never keeps pointing at a bin that's no longer
+          // there. Scheduled for after this build finishes since it touches
+          // state.
+          if (_showRoute) {
+            final stillPresent = _suggestedRoute
+                .where((routeBin) => _bins.any((b) => b.id == routeBin.id))
+                .toList();
+            if (stillPresent.length != _suggestedRoute.length) {
+              WidgetsBinding.instance.addPostFrameCallback((_) {
+                if (!mounted) return;
+                if (_bins.isEmpty) {
+                  setState(() {
+                    _showRoute = false;
+                    _suggestedRoute = [];
+                    _roadPoints = [];
+                  });
+                } else {
+                  _suggestRoute();
+                }
+              });
+            }
+          }
+
           final markers = _buildMarkers(_bins);
           final routePoints = _visibleRoutePoints(_buildRoutePoints());
 

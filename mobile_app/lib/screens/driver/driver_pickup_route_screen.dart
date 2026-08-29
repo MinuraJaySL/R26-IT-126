@@ -371,6 +371,36 @@ class _DriverPickupRouteScreenState extends State<DriverPickupRouteScreen> {
           _fs.autoResolveStaleRequests(allRequests); // fire-and-forget self-heal
           _activeRequests =
               allRequests.where((r) => r.status == RequestStatus.active).toList();
+
+          // Markers/route-eligible requests are already reactive (rebuilt
+          // from _activeRequests every time this stream fires), but the
+          // suggested route/polyline is a snapshot taken once when
+          // "Suggest Route" was tapped — nothing recomputes it on its own.
+          // If a request the route was passing through just left the
+          // active list (arrived, collected, expired, missed), refresh the
+          // route so it never keeps pointing at a stop that's no longer
+          // there. Scheduled for after this build finishes since it
+          // touches state.
+          if (_showRoute) {
+            final stillPresent = _suggestedRoute
+                .where((routeReq) => _activeRequests.any((r) => r.id == routeReq.id))
+                .toList();
+            if (stillPresent.length != _suggestedRoute.length) {
+              WidgetsBinding.instance.addPostFrameCallback((_) {
+                if (!mounted) return;
+                if (_activeRequests.isEmpty) {
+                  setState(() {
+                    _showRoute = false;
+                    _suggestedRoute = [];
+                    _roadPoints = [];
+                  });
+                } else {
+                  _suggestRoute();
+                }
+              });
+            }
+          }
+
           final markers = _buildMarkers();
           final routePoints = _visibleRoutePoints(_buildRoutePoints());
 
