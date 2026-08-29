@@ -18,6 +18,8 @@ class AdminRecoveryRequestsScreen extends StatelessWidget {
           foregroundColor: Colors.white,
           bottom: const TabBar(
             indicatorColor: Colors.white,
+            labelColor: Colors.white,
+            unselectedLabelColor: Colors.white70,
             tabs: [
               Tab(text: 'Open'),
               Tab(text: 'Resolved'),
