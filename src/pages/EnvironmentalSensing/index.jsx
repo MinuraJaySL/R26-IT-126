@@ -26,7 +26,7 @@ export default function EnvironmentalSensing() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }}>
+      {/* <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }}>
         <div className="flex items-center gap-3">
           <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-cyan-500/10">
             <Radio size={22} className="text-cyan-500" />
@@ -37,10 +37,10 @@ export default function EnvironmentalSensing() {
             </h1>
           </div>
         </div>
-      </motion.div>
+      </motion.div> */}
 
       {/* Smart Bin Status */}
-      <AnimatedCard delay={0.1} hover={false}>
+      {/* <AnimatedCard delay={0.1} hover={false}>
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
             <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-emerald-500/10">
@@ -56,7 +56,7 @@ export default function EnvironmentalSensing() {
             <span className="text-sm font-semibold text-emerald-500">Online</span>
           </div>
         </div>
-      </AnimatedCard>
+      </AnimatedCard> */}
 
       {/* Live Firebase Sensor Data */}
       <AnimatedCard delay={0.15} hover={false}>
@@ -64,7 +64,7 @@ export default function EnvironmentalSensing() {
       </AnimatedCard>
 
       {/* Sensor Cards */}
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+      {/* <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
         {sensorData.map((sensor, i) => {
           const IconComp = iconMap[sensor.icon] || Gauge;
           return (
@@ -81,10 +81,10 @@ export default function EnvironmentalSensing() {
             />
           );
         })}
-      </div>
+      </div> */}
 
       {/* Sensor History Chart */}
-      <ChartCard title="Sensor History" subtitle="24-hour environmental readings" delay={0.5}>
+      {/* <ChartCard title="Sensor History" subtitle="24-hour environmental readings" delay={0.5}>
         <ResponsiveContainer width="100%" height={300}>
           <LineChart data={sensorHistory}>
             <CartesianGrid strokeDasharray="3 3" stroke={isDark ? '#334155' : '#e2e8f0'} />
@@ -104,10 +104,10 @@ export default function EnvironmentalSensing() {
             <Line type="monotone" dataKey="humidity" stroke="#8b5cf6" strokeWidth={2} name="Humidity (%)" dot={false} />
           </LineChart>
         </ResponsiveContainer>
-      </ChartCard>
+      </ChartCard> */}
 
       {/* Alerts */}
-      <AnimatedCard delay={0.6} hover={false}>
+      {/* <AnimatedCard delay={0.6} hover={false}>
         <h3 className="mb-4 text-lg font-semibold" style={{ color: 'var(--text-primary)' }}>
           Environmental Alerts
         </h3>
@@ -129,7 +129,7 @@ export default function EnvironmentalSensing() {
             <Badge variant="success" className="ml-auto">Normal</Badge>
           </div>
         </div>
-      </AnimatedCard>
+      </AnimatedCard> */}
     </div>
   );
 }
