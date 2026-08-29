@@ -38,26 +38,26 @@ export default function TopNavbar() {
         </div> */}
 
         {/* Notifications */}
-        <button
+        {/* <button
           className="relative flex h-10 w-10 items-center justify-center rounded-xl transition-colors hover:bg-surface-100 dark:hover:bg-surface-700/50"
           style={{ color: 'var(--text-secondary)' }}
         >
           <Bell size={20} />
           <span className="absolute right-2 top-2 h-2 w-2 rounded-full bg-red-500 status-dot" />
-        </button>
+        </button> */}
 
         {/* Theme toggle */}
-        {/* <button
+        <button
           onClick={toggleTheme}
           className="flex h-10 w-10 items-center justify-center rounded-xl transition-colors hover:bg-surface-100 dark:hover:bg-surface-700/50"
           style={{ color: 'var(--text-secondary)' }}
         >
           {isDark ? <Sun size={20} /> : <Moon size={20} />}
-        </button> */}
+        </button>
 
         {/* Profile */}
         <div className="flex items-center gap-2">
-          <div className="flex h-9 w-9 items-center justify-center rounded-full bg-green-900 text-sm font-bold text-black">
+          <div className="flex h-9 w-9 items-center justify-center rounded-full bg-green-900 text-sm font-bold text-white">
             M
           </div>
         </div>

@@ -1,344 +1,465 @@
-import { useState } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { useState, useEffect } from 'react';
+import { motion } from 'framer-motion';
 import {
   MapPin, CloudRain, Calendar, CalendarDays, Sparkles,
-  Home, Store, GraduationCap, Building, Umbrella,
-  ChevronDown, ChevronUp, Users, Droplets, Package, Plus, Trash2,
+  Building, Umbrella, Users, Droplets, Package, Loader2,
+  Truck, Zap, RefreshCw, CheckCircle, AlertCircle,
 } from 'lucide-react';
-
 import AnimatedCard from '../../components/ui/AnimatedCard';
-import Toggle from '../../components/ui/Toggle';
+import WeekPicker from './WeekPicker';
+import { fetchRainfallForecast, fetchPreviousWeekData } from '../../utils/api';
 
-const zoneTypes = [
-  { value: 'residential', label: 'Residential', icon: Home, color: '#10b981', bgClass: 'bg-emerald-500/10' },
-  { value: 'market', label: 'Market', icon: Store, color: '#06b6d4', bgClass: 'bg-cyan-500/10' },
-  { value: 'school', label: 'School', icon: GraduationCap, color: '#f59e0b', bgClass: 'bg-amber-500/10' },
-  { value: 'office', label: 'Office', icon: Building, color: '#8b5cf6', bgClass: 'bg-violet-500/10' },
-  { value: 'tourist_area', label: 'Tourist Area', icon: Umbrella, color: '#ef4444', bgClass: 'bg-red-500/10' },
-
+const ZONE_INFO = [
+  { key: 'Kalutara North', icon: Building, color: '#10b981', areaLabel: 'Town' },
+  { key: 'Kalutara South', icon: Umbrella, color: '#06b6d4', areaLabel: 'Beach' },
+  { key: 'Katukurunda 1', icon: Users, color: '#f59e0b', areaLabel: 'Muslim Area' },
+  { key: 'Katukurunda 2', icon: Building, color: '#8b5cf6', areaLabel: 'Town' },
 ];
 
 const weekTypes = [
-  { value: 'normal', label: 'Normal Week' },
-  { value: 'holiday', label: 'Holiday' },
-  { value: 'festival', label: 'Festival' },
+  { value: 'normal', label: 'Normal Week', description: 'Standard collection schedule', icon: CalendarDays },
+  { value: 'holiday', label: 'Holiday / Poya', description: 'Public holiday or Poya day in the week', icon: Sparkles },
+  { value: 'festival', label: 'Festival Week', description: 'Cultural, religious or local events', icon: Zap },
 ];
 
-const popOptions = [
-  { value: 'low', label: 'Low' },
-  { value: 'medium', label: 'Medium' },
-  { value: 'high', label: 'High' },
-  { value: 'very_high', label: 'Very High' },
+const MONTHS = [
+  'January', 'February', 'March', 'April', 'May', 'June',
+  'July', 'August', 'September', 'October', 'November', 'December',
 ];
 
-const months = ['January','February','March','April','May','June','July','August','September','October','November','December'];
-
-// Default individual zones per zone type
-const defaultZoneDefaults = {
-  residential: { populationDensity: 'high', previousWet: 0.70, previousDry: 0.50 },
-  market: { populationDensity: 'very_high', previousWet: 0.75, previousDry: 0.40 },
-  school: { populationDensity: 'medium', previousWet: 0.16, previousDry: 0.14 },
-  office: { populationDensity: 'medium', previousWet: 0.18, previousDry: 0.27 },
-  tourist_area: { populationDensity: 'high', previousWet: 0.38, previousDry: 0.32 },
-};
-
-// Generate initial zone list with realistic varied values
-function generateInitialZones() {
-  return {
-    residential: [
-      { id: 1, name: 'Residential Zone 1', populationDensity: 'high', previousWet: 0.82, previousDry: 0.55 },
-      { id: 2, name: 'Residential Zone 2', populationDensity: 'medium', previousWet: 0.58, previousDry: 0.42 },
-      { id: 3, name: 'Residential Zone 3', populationDensity: 'very_high', previousWet: 0.95, previousDry: 0.68 },
-    ],
-    market: [
-      { id: 4, name: 'Market Zone 1', populationDensity: 'very_high', previousWet: 0.92, previousDry: 0.48 },
-      { id: 5, name: 'Market Zone 2', populationDensity: 'high', previousWet: 0.65, previousDry: 0.35 },
-    ],
-    school: [
-      { id: 6, name: 'School Zone 1', populationDensity: 'medium', previousWet: 0.18, previousDry: 0.15 },
-      { id: 7, name: 'School Zone 2', populationDensity: 'low', previousWet: 0.12, previousDry: 0.10 },
-      { id: 8, name: 'School Zone 3', populationDensity: 'high', previousWet: 0.22, previousDry: 0.18 },
-    ],
-    office: [
-      { id: 9, name: 'Office Zone 1', populationDensity: 'medium', previousWet: 0.17, previousDry: 0.25 },
-      { id: 10, name: 'Office Zone 2', populationDensity: 'high', previousWet: 0.22, previousDry: 0.32 },
-    ],
-    tourist_area: [
-      { id: 11, name: 'Tourist Zone 1', populationDensity: 'high', previousWet: 0.45, previousDry: 0.38 },
-      { id: 12, name: 'Tourist Zone 2', populationDensity: 'medium', previousWet: 0.30, previousDry: 0.25 },
-    ],
-  };
+// Utility: get next Monday from today
+function getNextMonday() {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const day = today.getDay();
+  const diff = day === 0 ? 1 : 8 - day;
+  const d = new Date(today);
+  d.setDate(today.getDate() + diff);
+  return d;
 }
 
-let nextId = 100;
+// Format Date → YYYY-MM-DD
+function toISO(date) {
+  return date.toISOString().slice(0, 10);
+}
 
-export default function PredictionInputPanel({ onPredict }) {
-  const [globalParams, setGlobalParams] = useState({
-    rainfall: 20, weekType: 'normal', month: 5, specialEvent: false,
-  });
-  const [zoneConfigs, setZoneConfigs] = useState(generateInitialZones);
-  const [expandedZone, setExpandedZone] = useState(null);
+// Check if week is in the near future (0 to 15 days ahead)
+function isWithinForecast(monday) {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const days = Math.floor((monday - today) / 86400000);
+  return days >= 0 && days <= 15;
+}
 
-  const updateGlobal = (field, value) => setGlobalParams({ ...globalParams, [field]: value });
+export default function PredictionInputPanel({ onPredict, loading }) {
+  const [weekType, setWeekType] = useState('normal');
+  const [selectedMonday, setSelectedMonday] = useState(() => getNextMonday());
+  const [showCalendar, setShowCalendar] = useState(false);
 
-  const updateIndividualZone = (zoneType, zoneId, field, value) => {
-    setZoneConfigs((prev) => ({
-      ...prev,
-      [zoneType]: prev[zoneType].map((z) => (z.id === zoneId ? { ...z, [field]: value } : z)),
-    }));
+  const [rainfall, setRainfall] = useState(null);
+  const [rainfallLoading, setRainfallLoading] = useState(true);
+  const [rainfallError, setRainfallError] = useState(null);
+  const [prevWeek, setPrevWeek] = useState(null);
+  const [prevWeekLoading, setPrevWeekLoading] = useState(true);
+
+  const weekEnd = new Date(selectedMonday);
+  weekEnd.setDate(selectedMonday.getDate() + 6);
+  const month = selectedMonday.getMonth();
+  const monthName = MONTHS[month];
+  const isMonsoon = (month + 1) >= 5 && (month + 1) <= 10;
+  const liveData = isWithinForecast(selectedMonday);
+
+  // Fetch rainfall and prior week data whenever selected week changes
+  useEffect(() => {
+    loadRainfall();
+    loadPreviousWeek();
+  }, [selectedMonday]);
+
+  const loadRainfall = async () => {
+    setRainfallLoading(true);
+    setRainfallError(null);
+    try {
+      const data = await fetchRainfallForecast(toISO(selectedMonday));
+      setRainfall(data);
+    } catch (err) {
+      setRainfallError(err.message);
+      setRainfall({ total_mm: 20, success: false, daily: [], sourceType: 'fallback' });
+    } finally {
+      setRainfallLoading(false);
+    }
   };
 
-  const addZone = (zoneType) => {
-    const defaults = defaultZoneDefaults[zoneType];
-    const label = zoneTypes.find((z) => z.value === zoneType)?.label || zoneType;
-    const count = zoneConfigs[zoneType].length + 1;
-    setZoneConfigs((prev) => ({
-      ...prev,
-      [zoneType]: [
-        ...prev[zoneType],
-        { id: nextId++, name: `${label} Zone ${count}`, ...defaults },
-      ],
-    }));
+  const loadPreviousWeek = async () => {
+    setPrevWeekLoading(true);
+    try {
+      const data = await fetchPreviousWeekData(toISO(selectedMonday));
+      setPrevWeek(data.zones || {});
+    } catch {
+      setPrevWeek(null);
+    } finally {
+      setPrevWeekLoading(false);
+    }
   };
 
-  const removeZone = (zoneType, zoneId) => {
-    setZoneConfigs((prev) => ({
-      ...prev,
-      [zoneType]: prev[zoneType].filter((z) => z.id !== zoneId),
-    }));
+  const handleWeekChange = (monday, suggestedType) => {
+    setSelectedMonday(monday);
+    setWeekType(suggestedType);
+    setShowCalendar(false);
   };
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    onPredict({ globalParams, zoneConfigs });
+    onPredict({ weekType, weekStartDate: toISO(selectedMonday) });
   };
 
-  const inputStyle = { backgroundColor: 'var(--bg-tertiary)', borderColor: 'var(--border-color)', color: 'var(--text-primary)' };
-  const selectClass = "w-full rounded-xl border px-4 py-3 text-sm font-medium outline-none transition-all focus:ring-2 focus:ring-primary-500/50";
-  const miniInputClass = "w-full rounded-lg border px-3 py-2 text-sm font-medium outline-none transition-all focus:ring-2 focus:ring-primary-500/50";
-
-  const totalZones = Object.values(zoneConfigs).reduce((sum, zones) => sum + zones.length, 0);
-  const activeTypes = Object.values(zoneConfigs).filter((zones) => zones.length > 0).length;
+  const weekLabel = `${selectedMonday.toLocaleDateString('en-LK', { day: 'numeric', month: 'short' })} – ${weekEnd.toLocaleDateString('en-LK', { day: 'numeric', month: 'short', year: 'numeric' })}`;
 
   return (
     <form onSubmit={handleSubmit} className="space-y-6">
-      {/* Council Summary */}
+      {/* Council Header */}
       <AnimatedCard delay={0.05} hover={false}>
         <div className="flex flex-wrap items-center justify-between gap-4">
-          <div className="flex items-center gap-3">
-            <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-green-800">
-              <MapPin size={22} className="text-white" />
+          <div className="flex items-center gap-3.5">
+            <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br from-green-600 to-emerald-700 text-white shadow-md shadow-green-700/20">
+              <MapPin size={24} />
             </div>
             <div>
-              <h3 className="text-lg font-bold" style={{ color: 'var(--text-primary)' }}>Municipal Council Configuration</h3>
-              <p className="text-sm" style={{ color: 'var(--text-secondary)' }}>Configure individual zones across the council area</p>
+              <h3 className="text-lg font-bold" style={{ color: 'var(--text-primary)' }}>
+                Kalutara Municipal Council
+              </h3>
             </div>
           </div>
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-5">
             <div className="text-center">
-              <p className="text-2xl font-bold text-primary-500">{totalZones}</p>
-              <p className="text-xs" style={{ color: 'var(--text-muted)' }}>Total Zones</p>
+              <p className="text-2xl font-extrabold text-emerald-500">4</p>
+              <p className="text-xs font-semibold" style={{ color: 'var(--text-muted)' }}>Zones</p>
             </div>
             <div className="text-center">
-              <p className="text-2xl font-bold text-emerald-500">{activeTypes}</p>
-              <p className="text-xs" style={{ color: 'var(--text-muted)' }}>Zone Types</p>
+              <p className="text-2xl font-extrabold text-cyan-500">{monthName.slice(0, 3)}</p>
+              <p className="text-xs font-semibold" style={{ color: 'var(--text-muted)' }}>
+                {selectedMonday.getFullYear()}
+              </p>
             </div>
+            {isMonsoon && (
+              <div className="rounded-lg bg-cyan-500/10 px-2.5 py-1 text-xs font-bold text-cyan-500">
+                Monsoon
+              </div>
+            )}
           </div>
         </div>
       </AnimatedCard>
 
-      <div className="grid grid-cols-1 gap-6 xl:grid-cols-3">
-        {/* Global Parameters — Left column */}
-        <AnimatedCard delay={0.1} hover={false}>
-          <div className="mb-5 flex items-center gap-2">
-            <Calendar size={20} className="text-primary-500" />
-            <h3 className="text-lg font-semibold" style={{ color: 'var(--text-primary)' }}>Council-Wide Parameters</h3>
-          </div>
-          <div className="space-y-5">
-            <div>
-              <label className="mb-2 flex items-center justify-between text-sm font-medium" style={{ color: 'var(--text-secondary)' }}>
-                <span className="flex items-center gap-2"><CloudRain size={16} className="text-cyan-500" />Rainfall (mm)</span>
-                <span className="rounded-lg bg-cyan-500/10 px-2 py-0.5 text-sm font-bold text-cyan-500">{globalParams.rainfall} mm</span>
-              </label>
-              <input type="range" min="0" max="200" value={globalParams.rainfall} onChange={(e) => updateGlobal('rainfall', Number(e.target.value))} className="w-full" />
-              <div className="mt-1 flex justify-between text-xs" style={{ color: 'var(--text-muted)' }}><span>0</span><span>100</span><span>200</span></div>
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
+        {/* LEFT: Week Selector + Week Type */}
+        <div className="space-y-4">
+          {/* Week Date Picker */}
+          <AnimatedCard delay={0.1} hover={false}>
+            <div className="mb-3 flex items-center gap-2.5">
+              <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-emerald-500/10">
+                <Calendar size={18} className="text-emerald-500" />
+              </div>
+              <div>
+                <h3 className="text-base font-bold" style={{ color: 'var(--text-primary)' }}>
+                  Select Week
+                </h3>
+                <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
+                  Pick any week to predict for
+                </p>
+              </div>
             </div>
-            <div>
-              <label className="mb-2 flex items-center gap-2 text-sm font-medium" style={{ color: 'var(--text-secondary)' }}>
-                <CalendarDays size={16} className="text-amber-500" />Week Type
-              </label>
-              <div className="grid grid-cols-3 gap-2">
-                {weekTypes.map((wt) => (
-                  <button key={wt.value} type="button" onClick={() => updateGlobal('weekType', wt.value)}
-                    className={`rounded-xl border-2 px-3 py-2 text-xs font-medium transition-all ${globalParams.weekType === wt.value ? 'border-primary-500 bg-primary-500/10 text-primary-500' : 'border-transparent hover:border-primary-500/30'}`}
-                    style={globalParams.weekType !== wt.value ? { backgroundColor: 'var(--bg-tertiary)', color: 'var(--text-secondary)' } : {}}>
-                    {wt.label}
+
+            {/* Selected week display / toggle */}
+            <button
+              type="button"
+              onClick={() => setShowCalendar(v => !v)}
+              className={`w-full rounded-xl border-2 p-3 text-left transition-all ${
+                showCalendar ? 'border-emerald-500 bg-emerald-500/10' : 'hover:border-emerald-500/30'
+              }`}
+              style={{ borderColor: showCalendar ? '#10b981' : 'var(--border-color)' }}
+            >
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-xs font-semibold text-emerald-500">Selected Week</p>
+                  <p className="text-sm font-bold mt-0.5" style={{ color: 'var(--text-primary)' }}>
+                    {weekLabel}
+                  </p>
+                  <p className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>
+                    {monthName} {selectedMonday.getFullYear()} · Click to change
+                  </p>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  {rainfall?.sourceType === 'historical_actual' ? (
+                    <span className="rounded px-2 py-0.5 text-[10px] font-bold bg-cyan-500/10 text-cyan-500">Dataset</span>
+                  ) : liveData ? (
+                    <span className="rounded px-2 py-0.5 text-[10px] font-bold bg-emerald-500/10 text-emerald-500">Live</span>
+                  ) : (
+                    <span className="rounded px-2 py-0.5 text-[10px] font-bold bg-amber-500/10 text-amber-500">Avg</span>
+                  )}
+                  <Calendar size={16} style={{ color: 'var(--text-muted)' }} />
+                </div>
+              </div>
+            </button>
+
+            {/* Calendar dropdown */}
+            {showCalendar && (
+              <motion.div
+                initial={{ opacity: 0, y: -10 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="mt-3 rounded-xl border p-3"
+                style={{ borderColor: 'var(--border-color)', backgroundColor: 'var(--bg-tertiary)' }}
+              >
+                <WeekPicker
+                  selectedMonday={selectedMonday}
+                  onChange={handleWeekChange}
+                />
+              </motion.div>
+            )}
+
+            {/* Auto-derived info */}
+            <div className="mt-3 space-y-2 rounded-xl border p-3 text-xs" style={{ borderColor: 'var(--border-color)', backgroundColor: 'var(--bg-tertiary)' }}>
+              <div className="flex items-center justify-between">
+                <span style={{ color: 'var(--text-muted)' }}>Month</span>
+                <span className="font-bold" style={{ color: 'var(--text-primary)' }}>{monthName} {selectedMonday.getFullYear()}</span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span style={{ color: 'var(--text-muted)' }}>Rainfall Source</span>
+                <span className={`font-bold ${
+                  rainfall?.sourceType === 'historical_actual'
+                    ? 'text-cyan-500'
+                    : liveData
+                      ? 'text-emerald-500'
+                      : 'text-amber-500'
+                }`}>
+                  {rainfall?.sourceType === 'historical_actual'
+                    ? 'Recorded Dataset'
+                    : liveData
+                      ? 'Live Forecast'
+                      : 'Historical Monthly Avg'}
+                </span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span style={{ color: 'var(--text-muted)' }}>Season</span>
+                <span className={`font-bold ${isMonsoon ? 'text-cyan-500' : ''}`} style={!isMonsoon ? { color: 'var(--text-secondary)' } : {}}>
+                  {isMonsoon ? 'Monsoon' : 'Dry Season'}
+                </span>
+              </div>
+            </div>
+          </AnimatedCard>
+
+          {/* Week Type */}
+          <AnimatedCard delay={0.15} hover={false}>
+            <div className="mb-3 flex items-center gap-2.5">
+              <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-violet-500/10">
+                <CalendarDays size={18} className="text-violet-500" />
+              </div>
+              <div>
+                <h3 className="text-base font-bold" style={{ color: 'var(--text-primary)' }}>
+                  Week Type
+                </h3>
+              </div>
+            </div>
+            <div className="space-y-2">
+              {weekTypes.map((wt) => {
+                const isSelected = weekType === wt.value;
+                const Icon = wt.icon;
+                return (
+                  <button
+                    key={wt.value}
+                    type="button"
+                    onClick={() => setWeekType(wt.value)}
+                    className={`w-full rounded-xl border-2 p-3 text-left transition-all ${
+                      isSelected ? 'border-emerald-500 bg-emerald-500/10' : 'border-transparent hover:border-emerald-500/20'
+                    }`}
+                    style={!isSelected ? { backgroundColor: 'var(--bg-tertiary)' } : {}}
+                  >
+                    <div className="flex items-center gap-2.5">
+                      <div className={`flex h-8 w-8 items-center justify-center rounded-lg ${isSelected ? 'bg-emerald-500/20' : ''}`}
+                        style={!isSelected ? { backgroundColor: 'var(--bg-secondary)' } : {}}>
+                        <Icon size={16} className={isSelected ? 'text-emerald-500' : ''} style={!isSelected ? { color: 'var(--text-muted)' } : {}} />
+                      </div>
+                      <div className="flex-1">
+                        <p className={`text-xs font-bold ${isSelected ? 'text-emerald-600 dark:text-emerald-400' : ''}`}
+                          style={!isSelected ? { color: 'var(--text-primary)' } : {}}>
+                          {wt.label}
+                        </p>
+                        <p className="text-[10px]" style={{ color: 'var(--text-muted)' }}>{wt.description}</p>
+                      </div>
+                      {isSelected && <CheckCircle size={16} className="text-emerald-500 shrink-0" />}
+                    </div>
                   </button>
-                ))}
+                );
+              })}
+            </div>
+          </AnimatedCard>
+        </div>
+
+        {/* CENTER: Rainfall Forecast */}
+        <AnimatedCard delay={0.2} hover={false}>
+          <div className="mb-4 flex items-center justify-between">
+            <div className="flex items-center gap-2.5">
+              <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-cyan-500/10">
+                <CloudRain size={18} className="text-cyan-500" />
+              </div>
+              <div>
+                <h3 className="text-base font-bold" style={{ color: 'var(--text-primary)' }}>
+                  Rainfall Forecast
+                </h3>
+                <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
+                  {liveData ? 'Open-Meteo Live API' : 'Weekly Average'}
+                </p>
               </div>
             </div>
-            <div>
-              <label className="mb-2 flex items-center gap-2 text-sm font-medium" style={{ color: 'var(--text-secondary)' }}>
-                <Calendar size={16} className="text-emerald-500" />Month
-              </label>
-              <select value={globalParams.month} onChange={(e) => updateGlobal('month', Number(e.target.value))} className={selectClass} style={inputStyle}>
-                {months.map((m, i) => <option key={i} value={i + 1}>{m}</option>)}
-              </select>
-            </div>
-            <div className="flex items-center justify-between rounded-xl p-4" style={{ backgroundColor: 'var(--bg-tertiary)' }}>
-              <div className="flex items-center gap-2">
-                <Sparkles size={16} className="text-amber-500" />
-                <span className="text-sm font-medium" style={{ color: 'var(--text-primary)' }}>Special Event</span>
-              </div>
-              <Toggle checked={globalParams.specialEvent} onChange={(v) => updateGlobal('specialEvent', v)} />
-            </div>
+            <button type="button" onClick={loadRainfall} disabled={rainfallLoading}
+              className="flex h-7 w-7 items-center justify-center rounded-lg text-cyan-500 transition hover:bg-cyan-500/10">
+              <RefreshCw size={14} className={rainfallLoading ? 'animate-spin' : ''} />
+            </button>
           </div>
+
+          {rainfallLoading ? (
+            <div className="flex flex-col items-center justify-center py-8">
+              <Loader2 size={32} className="animate-spin text-cyan-500" />
+              <p className="mt-3 text-xs font-medium" style={{ color: 'var(--text-muted)' }}>
+                {liveData ? 'Fetching live forecast...' : 'Loading...'}
+              </p>
+            </div>
+          ) : (
+            <>
+              {/* Source badge */}
+              {/* <div className={`mb-3 inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-[10px] font-bold ${
+                rainfall?.sourceType === 'forecast'
+                  ? 'bg-emerald-500/10 text-emerald-500'
+                  : rainfall?.sourceType === 'historical_actual'
+                    ? 'bg-cyan-500/10 text-cyan-500'
+                    : 'bg-amber-500/10 text-amber-500'
+              }`}>
+                {rainfall?.sourceType === 'forecast' || rainfall?.sourceType === 'historical_actual' ? <CheckCircle size={10} /> : <AlertCircle size={10} />}
+                {rainfall?.source}
+              </div> */}
+
+              {/* Total rainfall hero */}
+              <div className="mb-4 rounded-xl p-4 text-center" style={{ background: 'linear-gradient(135deg, rgba(6,182,212,0.1), rgba(6,182,212,0.05))' }}>
+                <p className="text-3xl font-extrabold text-cyan-500">
+                  {rainfall?.total_mm || 0}
+                  <span className="ml-1 text-sm font-medium text-cyan-400/60">mm</span>
+                </p>
+                <p className="text-xs font-medium" style={{ color: 'var(--text-muted)' }}>
+                  {weekLabel}
+                </p>
+              </div>
+
+              {/* Daily breakdown bars */}
+              {rainfall?.daily && rainfall.daily.length > 0 && (
+                <div className="space-y-1.5">
+                  {rainfall.daily.map((day, i) => {
+                    const maxPrecip = Math.max(...rainfall.daily.map(d => d.precipitation_mm), 1);
+                    const pct = (day.precipitation_mm / maxPrecip) * 100;
+                    const dayName = new Date(day.date).toLocaleDateString('en-LK', { weekday: 'short', day: 'numeric', month: 'short' });
+                    return (
+                      <div key={i} className="flex items-center gap-2 text-xs">
+                        <span className="w-24 font-medium" style={{ color: 'var(--text-secondary)' }}>{dayName}</span>
+                        <div className="flex-1 h-2 rounded-full overflow-hidden" style={{ backgroundColor: 'var(--border-color)' }}>
+                          <motion.div
+                            initial={{ width: 0 }}
+                            animate={{ width: `${pct}%` }}
+                            transition={{ delay: 0.15 + i * 0.05, duration: 0.4 }}
+                            className="h-full rounded-full bg-cyan-500"
+                          />
+                        </div>
+                        <span className="w-12 text-right font-bold text-cyan-500">{day.precipitation_mm}mm</span>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+
+              {rainfall?.note && (
+                <p className="mt-3 text-[10px] italic" style={{ color: 'var(--text-muted)' }}>{rainfall.note}</p>
+              )}
+            </>
+          )}
         </AnimatedCard>
 
-        {/* Zone Configurations — Right 2 columns */}
-        <div className="space-y-4 xl:col-span-2">
-          <div className="mb-1 flex items-center gap-2">
-            <h3 className="text-lg font-semibold" style={{ color: 'var(--text-primary)' }}>Zone Type Configuration</h3>
+        {/* RIGHT: Previous Week Data */}
+        <AnimatedCard delay={0.25} hover={false}>
+          <div className="mb-4 flex items-center gap-2.5">
+            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-violet-500/10">
+              <Package size={18} className="text-violet-500" />
+            </div>
+            <div>
+              <h3 className="text-base font-bold" style={{ color: 'var(--text-primary)' }}>
+                Previous Week Data
+              </h3>
+            </div>
           </div>
-          {zoneTypes.map((zone, idx) => {
-            const zones = zoneConfigs[zone.value];
-            const isExpanded = expandedZone === zone.value;
-            return (
-              <motion.div
-                key={zone.value}
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.15 + idx * 0.06 }}
-                className="card overflow-hidden border"
-                style={{ borderColor: isExpanded ? zone.color + '60' : 'var(--border-color)' }}
-              >
-                {/* Zone Header — always visible */}
-                <button
-                  type="button"
-                  onClick={() => setExpandedZone(isExpanded ? null : zone.value)}
-                  className="flex w-full items-center justify-between px-5 py-4 text-left transition-colors hover:opacity-80"
-                >
-                  <div className="flex items-center gap-3">
-                    <div>
-                      <p className="text-sm font-bold" style={{ color: 'var(--text-primary)' }}>{zone.label}</p>
-                      <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
-                        {zones.length} zone{zones.length !== 1 ? 's' : ''} configured
-                      </p>
+
+          {prevWeekLoading ? (
+            <div className="flex flex-col items-center justify-center py-8">
+              <Loader2 size={32} className="animate-spin text-violet-500" />
+              <p className="mt-3 text-xs font-medium" style={{ color: 'var(--text-muted)' }}>Loading zone data...</p>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {ZONE_INFO.map((zone) => {
+                const Icon = zone.icon;
+                const data = prevWeek?.[zone.key];
+                const wet = data?.previousWet || 0;
+                const dry = data?.previousDry || 0;
+                const total = wet + dry;
+                return (
+                  <div key={zone.key} className="rounded-xl p-3" style={{ backgroundColor: 'var(--bg-tertiary)' }}>
+                    <div className="flex items-center justify-between mb-2">
+                      <div className="flex items-center gap-2">
+                        <Icon size={14} style={{ color: zone.color }} />
+                        <span className="text-xs font-bold" style={{ color: 'var(--text-primary)' }}>{zone.key}</span>
+                        <span className="rounded px-1.5 py-0.5 text-[10px] font-semibold" style={{ backgroundColor: `${zone.color}15`, color: zone.color }}>
+                          {zone.areaLabel}
+                        </span>
+                      </div>
+                      <span className="text-xs font-extrabold" style={{ color: zone.color }}>{total.toFixed(1)}t</span>
+                    </div>
+                    <div className="flex gap-4 text-[11px]">
+                      <div className="flex items-center gap-1">
+                        <Droplets size={10} className="text-cyan-500" />
+                        <span style={{ color: 'var(--text-muted)' }}>Wet:</span>
+                        <span className="font-bold text-cyan-500">{wet}t</span>
+                      </div>
+                      <div className="flex items-center gap-1">
+                        <Package size={10} className="text-violet-500" />
+                        <span style={{ color: 'var(--text-muted)' }}>Dry:</span>
+                        <span className="font-bold text-violet-500">{dry}t</span>
+                      </div>
                     </div>
                   </div>
-                  <div className="flex items-center gap-3">
-                    <span className="rounded-lg px-2 py-1 text-xs font-bold" style={{ backgroundColor: `${zone.color}15`, color: zone.color }}>
-                      {zones.length}
-                    </span>
-                    {isExpanded ? <ChevronUp size={18} style={{ color: 'var(--text-muted)' }} /> : <ChevronDown size={18} style={{ color: 'var(--text-muted)' }} />}
-                  </div>
-                </button>
-
-                {/* Expanded — Individual Zone List */}
-                <AnimatePresence>
-                  {isExpanded && (
-                    <motion.div
-                      initial={{ height: 0, opacity: 0 }}
-                      animate={{ height: 'auto', opacity: 1 }}
-                      exit={{ height: 0, opacity: 0 }}
-                      transition={{ duration: 0.25 }}
-                      className="overflow-hidden"
-                    >
-                      <div className="border-t px-5 pb-4 pt-3" style={{ borderColor: 'var(--border-color)' }}>
-                        {/* Column Headers */}
-                        <div className="mb-2 grid grid-cols-12 gap-2 px-1 text-xs font-semibold" style={{ color: 'var(--text-muted)' }}>
-                          <div className="col-span-3">Zone Name</div>
-                          <div className="col-span-3"><Users size={11} className="mr-1 inline" />Pop. Density</div>
-                          <div className="col-span-2"><Droplets size={11} className="mr-1 inline" />Prev Wet (t)</div>
-                          <div className="col-span-2"><Package size={11} className="mr-1 inline" />Prev Dry (t)</div>
-                          <div className="col-span-2"></div>
-                        </div>
-
-                        {/* Zone Rows */}
-                        <div className="space-y-2">
-                          {zones.map((z, i) => (
-                            <motion.div
-                              key={z.id}
-                              initial={{ opacity: 0, x: -10 }}
-                              animate={{ opacity: 1, x: 0 }}
-                              transition={{ delay: i * 0.03 }}
-                              className="grid grid-cols-12 items-center gap-2 rounded-xl p-2"
-                              style={{ backgroundColor: 'var(--bg-tertiary)' }}
-                            >
-                              <div className="col-span-3">
-                                <input
-                                  type="text"
-                                  value={z.name}
-                                  onChange={(e) => updateIndividualZone(zone.value, z.id, 'name', e.target.value)}
-                                  className="w-full rounded-lg border bg-transparent px-2 py-1.5 text-xs font-medium outline-none focus:ring-1 focus:ring-primary-500/50"
-                                  style={{ borderColor: 'var(--border-color)', color: 'var(--text-primary)' }}
-                                />
-                              </div>
-                              <div className="col-span-3">
-                                <select
-                                  value={z.populationDensity}
-                                  onChange={(e) => updateIndividualZone(zone.value, z.id, 'populationDensity', e.target.value)}
-                                  className="w-full rounded-lg border px-2 py-1.5 text-xs font-medium outline-none focus:ring-1 focus:ring-primary-500/50"
-                                  style={inputStyle}
-                                >
-                                  {popOptions.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
-                                </select>
-                              </div>
-                              <div className="col-span-2">
-                                <input
-                                  type="number" step="0.1" min="0"
-                                  value={z.previousWet}
-                                  onChange={(e) => updateIndividualZone(zone.value, z.id, 'previousWet', Number(e.target.value))}
-                                  className="w-full rounded-lg border px-2 py-1.5 text-xs font-medium outline-none focus:ring-1 focus:ring-primary-500/50"
-                                  style={inputStyle}
-                                />
-                              </div>
-                              <div className="col-span-2">
-                                <input
-                                  type="number" step="0.1" min="0"
-                                  value={z.previousDry}
-                                  onChange={(e) => updateIndividualZone(zone.value, z.id, 'previousDry', Number(e.target.value))}
-                                  className="w-full rounded-lg border px-2 py-1.5 text-xs font-medium outline-none focus:ring-1 focus:ring-primary-500/50"
-                                  style={inputStyle}
-                                />
-                              </div>
-                              <div className="col-span-2 flex justify-end">
-                                <button
-                                  type="button"
-                                  onClick={() => removeZone(zone.value, z.id)}
-                                  className="flex h-7 w-7 items-center justify-center rounded-lg text-red-400 transition-colors hover:bg-red-500/10 hover:text-red-500"
-                                  title="Remove zone"
-                                >
-                                  <Trash2 size={14} />
-                                </button>
-                              </div>
-                            </motion.div>
-                          ))}
-                        </div>
-
-                        {/* Add Zone Button */}
-                        <button
-                          type="button"
-                          onClick={() => addZone(zone.value)}
-                          className="mt-3 flex w-full items-center justify-center gap-2 rounded-xl border-2 border-dashed py-2.5 text-xs font-medium transition-all hover:border-solid"
-                          style={{ borderColor: zone.color + '50', color: zone.color }}
-                        >
-                          <Plus size={14} /> Add {zone.label} Zone
-                        </button>
-                      </div>
-                    </motion.div>
-                  )}
-                </AnimatePresence>
-              </motion.div>
-            );
-          })}
-        </div>
+                );
+              })}
+              {prevWeek && (
+                <div className="flex items-center justify-between rounded-xl border p-3 text-xs font-bold" style={{ borderColor: 'var(--border-color)' }}>
+                  <span style={{ color: 'var(--text-secondary)' }}>Council Total (prev. week)</span>
+                  <span className="text-sm text-emerald-500">
+                    {Object.values(prevWeek).reduce((s, z) => s + (z.previousWet || 0) + (z.previousDry || 0), 0).toFixed(1)}t
+                  </span>
+                </div>
+              )}
+            </div>
+          )}
+        </AnimatedCard>
       </div>
 
-      {/* Submit Button */}
-      <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.5 }} className="flex justify-center">
-        <button type="submit" className="group relative flex items-center gap-3 overflow-hidden rounded-2xl bg-green-700 px-10 py-4 text-lg font-bold text-white shadow-lg shadow-primary-500/25 transition-all active:scale-95">
-          <span>Generate Prediction</span>
+      {/* Submit */}
+      <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.35 }}
+        className="flex justify-center pt-2">
+        <button
+          type="submit"
+          disabled={loading || rainfallLoading}
+          className={`group relative flex items-center gap-3 overflow-hidden rounded-2xl bg-gradient-to-r from-green-600 to-emerald-600 px-12 py-4 text-base sm:text-lg font-bold text-white shadow-xl shadow-green-600/25 transition-all hover:scale-[1.02] hover:shadow-green-600/35 active:scale-95 ${
+            loading || rainfallLoading ? 'opacity-70 cursor-not-allowed' : ''
+          }`}
+        >
+          {loading ? (
+            <><Loader2 size={22} className="animate-spin" /><span>Running ML Prediction...</span></>
+          ) : (
+            <><Truck size={22} /><span>Predict Week of {weekLabel}</span></>
+          )}
         </button>
       </motion.div>
     </form>

@@ -2,25 +2,25 @@ import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   BrainCircuit, SlidersHorizontal, BarChart3, PieChart,
-  LineChart as LineChartIcon, Lightbulb, History, DollarSign,
+  Lightbulb, History, DollarSign, Loader2, GitCompare,
 } from 'lucide-react';
 import PredictionInputPanel from './PredictionInputPanel';
 import PredictionResults from './PredictionResults';
 import WasteComposition from './WasteComposition';
-import Analytics from './Analytics';
 import Recommendations from './Recommendations';
 import PredictionHistory from './PredictionHistory';
 import RevenueEstimation from './RevenueEstimation';
-import { predictMunicipalWaste, estimateMunicipalComposition, generateRecommendations } from '../../utils/predictionEngine';
+import ModelValidation from './ModelValidation';
+import { predictWasteAPI } from '../../utils/api';
 
 const tabs = [
   { id: 'predict', label: 'Predict', icon: SlidersHorizontal },
   { id: 'results', label: 'Results', icon: BarChart3 },
-  { id: 'composition', label: 'Composition', icon: PieChart },
-  // { id: 'analytics', label: 'Analytics', icon: LineChartIcon },
+  // { id: 'composition', label: 'Composition', icon: PieChart },
   { id: 'recommendations', label: 'Recommendations', icon: Lightbulb },
   { id: 'history', label: 'History', icon: History },
   { id: 'revenue', label: 'Revenue', icon: DollarSign },
+  // { id: 'validation', label: 'Validation', icon: GitCompare },
 ];
 
 export default function WastePrediction() {
@@ -28,37 +28,52 @@ export default function WastePrediction() {
   const [prediction, setPrediction] = useState(null);
   const [composition, setComposition] = useState(null);
   const [recommendations, setRecommendations] = useState([]);
+  const [truckRequirements, setTruckRequirements] = useState(null);
+  const [rainfallForecast, setRainfallForecast] = useState(null);
+  const [inputsSummary, setInputsSummary] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
 
-  const handlePredict = (inputs) => {
-    const result = predictMunicipalWaste(inputs);
-    setPrediction(result);
+  const handlePredict = async (inputs) => {
+    setLoading(true);
+    setError(null);
 
-    const comp = estimateMunicipalComposition(result.zoneResults);
-    setComposition(comp);
+    try {
+      const result = await predictWasteAPI(inputs);
 
-    const recs = generateRecommendations(result);
-    setRecommendations(recs);
+      setPrediction(result.prediction);
+      setComposition(result.composition);
+      setRecommendations(result.recommendations);
+      setTruckRequirements(result.truckRequirements);
+      setRainfallForecast(result.rainfallForecast);
+      setInputsSummary(result.inputsSummary);
 
-    // Auto-switch to results tab
-    setActiveTab('results');
+      // Auto-switch to results tab
+      setActiveTab('results');
+    } catch (err) {
+      console.error('Prediction failed:', err);
+      setError(err.message || 'Prediction failed. Is the backend running?');
+    } finally {
+      setLoading(false);
+    }
   };
 
   const renderTab = () => {
     switch (activeTab) {
       case 'predict':
-        return <PredictionInputPanel onPredict={handlePredict} />;
+        return <PredictionInputPanel onPredict={handlePredict} loading={loading} />;
       case 'results':
-        return <PredictionResults prediction={prediction} />;
+        return <PredictionResults prediction={prediction} truckRequirements={truckRequirements} inputsSummary={inputsSummary} />;
       case 'composition':
         return <WasteComposition composition={composition} prediction={prediction} />;
-      case 'analytics':
-        return <Analytics />;
       case 'recommendations':
         return <Recommendations recommendations={recommendations} prediction={prediction} />;
       case 'history':
         return <PredictionHistory />;
       case 'revenue':
         return <RevenueEstimation composition={composition} prediction={prediction} />;
+      case 'validation':
+        return <ModelValidation />;
       default:
         return null;
     }
@@ -69,16 +84,42 @@ export default function WastePrediction() {
       {/* Header */}
       <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }}>
         <div className="flex items-center gap-3">
-          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-green-500/10">
-            <BrainCircuit size={22} className="text-green-500" />
+          <div className="flex h-10 w-10 items-center justify-center rounded-xl gradient-primary">
+            <BrainCircuit size={22} className="text-white" />
           </div>
           <div>
             <h1 className="text-2xl font-bold" style={{ color: 'var(--text-primary)' }}>
-              Municipal Waste Prediction & Composition Estimation
+              Municipal Waste Prediction & Fleet Planning
             </h1>
           </div>
         </div>
       </motion.div>
+
+      {/* Error Banner */}
+      {error && (
+        <motion.div
+          initial={{ opacity: 0, y: -10 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="rounded-xl border border-red-500/30 bg-red-500/10 px-5 py-3 text-sm font-medium text-red-400"
+        >
+          ⚠ {error}
+        </motion.div>
+      )}
+
+      {/* Loading Overlay */}
+      {loading && (
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          className="flex items-center justify-center gap-3 rounded-xl border px-5 py-4"
+          style={{ borderColor: 'var(--border-color)', backgroundColor: 'var(--bg-secondary)' }}
+        >
+          <Loader2 size={20} className="animate-spin text-green-500" />
+          <span className="text-sm font-medium" style={{ color: 'var(--text-secondary)' }}>
+            Fetching weather data & running ML models...
+          </span>
+        </motion.div>
+      )}
 
       {/* Tab Navigation */}
       <motion.div
