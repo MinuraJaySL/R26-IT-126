@@ -1,12 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
-import 'package:provider/provider.dart';
 
 import '../../models/recovery_request.dart';
-import '../../providers/auth_provider.dart';
 import '../../services/admin_service.dart';
 import '../../services/firestore_service.dart';
-import '../../widgets/confirm_logout_dialog.dart';
 
 class AdminDashboardScreen extends StatefulWidget {
   const AdminDashboardScreen({super.key});
@@ -41,14 +38,9 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
         title: const Text('Admin Dashboard'),
         actions: [
           IconButton(
-            icon: const Icon(Icons.logout),
-            tooltip: 'Log out',
-            onPressed: () async {
-              final confirmed = await confirmLogout(context);
-              if (!confirmed || !context.mounted) return;
-              await context.read<AuthProvider>().signOut();
-              if (context.mounted) context.go('/login');
-            },
+            icon: const Icon(Icons.person_outline),
+            tooltip: 'Profile',
+            onPressed: () => context.push('/profile'),
           ),
         ],
       ),
