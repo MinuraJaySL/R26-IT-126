@@ -193,7 +193,7 @@ class _DriverMapScreenState extends State<DriverMapScreen> {
     final routeIndex = _showRoute ? _suggestedRoute.indexOf(bin) : -1;
     showModalBottomSheet(
       context: context,
-      builder: (_) => Padding(
+      builder: (sheetContext) => Padding(
         padding: const EdgeInsets.all(20),
         child: Column(
           mainAxisSize: MainAxisSize.min,
@@ -217,21 +217,67 @@ class _DriverMapScreenState extends State<DriverMapScreen> {
               ],
             ),
             const SizedBox(height: 4),
-            Text(
-              'Priority: ${bin.priority.name.toUpperCase()}',
-              style: TextStyle(
-                  color: _priorityColor(bin.priority), fontSize: 13),
+            const Text(
+              'Requires immediate collection',
+              style: TextStyle(color: Colors.red, fontSize: 13, fontWeight: FontWeight.w600),
             ),
             const SizedBox(height: 12),
-            _DetailRow('Fill level', '${bin.fillPercent.toStringAsFixed(0)}%'),
-            _DetailRow('Methane', bin.methaneStatus.name.toUpperCase()),
-            _DetailRow('Last updated', _formatTime(bin.lastUpdated)),
+            _DetailRow('Critical for', _formatDuration(bin.criticalSince)),
             if (routeIndex >= 0)
               _DetailRow('Route stop', '#${routeIndex + 1}'),
+            const SizedBox(height: 16),
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton.icon(
+                icon: const Icon(Icons.check_circle_outline),
+                label: const Text('Mark Collected'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.green,
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                ),
+                onPressed: () {
+                  Navigator.of(sheetContext).pop();
+                  _confirmMarkCollected(bin);
+                },
+              ),
+            ),
           ],
         ),
       ),
     );
+  }
+
+  Future<void> _confirmMarkCollected(SmartBin bin) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Mark as Collected?'),
+        content: Text('This will remove "${bin.label}" from the map for all drivers.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(false),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.of(dialogContext).pop(true),
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.green, foregroundColor: Colors.white),
+            child: const Text('Mark Collected'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+
+    try {
+      await _fs.markBinCollected(bin.id);
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Failed to update bin. Please try again.')),
+        );
+      }
+    }
   }
 
   Color _priorityColor(BinPriority p) {
@@ -326,8 +372,17 @@ class _DriverMapScreenState extends State<DriverMapScreen> {
     return fullRoute.sublist(nearestIndex);
   }
 
-  String _formatTime(DateTime dt) {
-    return '${dt.day}/${dt.month} ${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}';
+  // "Critical for" reads as a stronger urgency signal to a driver than a
+  // raw fill percentage would — a bin that's been waiting for hours matters
+  // more than one that just crossed the threshold a minute ago.
+  String _formatDuration(DateTime? since) {
+    if (since == null) return 'Unknown';
+    final elapsed = DateTime.now().difference(since);
+    if (elapsed.inMinutes < 1) return 'Just now';
+    if (elapsed.inHours < 1) return '${elapsed.inMinutes}m';
+    final hours = elapsed.inHours;
+    final minutes = elapsed.inMinutes % 60;
+    return minutes == 0 ? '${hours}h' : '${hours}h ${minutes}m';
   }
 
   @override

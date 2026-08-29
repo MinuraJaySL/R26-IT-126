@@ -2,55 +2,17 @@ import '../models/bin_model.dart';
 import '../utils/geo_utils.dart';
 
 class RouteService {
-  /// Returns bins in optimised collection order:
-  /// 1. RED + high-methane bins — nearest-neighbour from driver
-  /// 2. YELLOW bins          — nearest-neighbour from last RED stop
-  /// 3. GREEN bins           — nearest-neighbour from last YELLOW stop
-  ///
-  /// Each group's handoff position comes from the ORDERED result of the
-  /// previous group, not the raw list — this is the key to avoiding zigzags.
+  /// Returns bins in nearest-neighbour collection order from the driver's
+  /// position. Used to group by priority tier (red/yellow/green) when bins
+  /// could be non-critical — now that only critical bins are ever stored
+  /// (see the Worker's /bin-status endpoint), every bin is equally urgent,
+  /// so this collapses to a single pass.
   List<SmartBin> suggestRoute(
     List<SmartBin> bins,
     double driverLat,
     double driverLng,
   ) {
-    if (bins.isEmpty) return [];
-
-    // --- Group bins by priority ---
-    final urgent = bins
-        .where((b) =>
-            b.priority == BinPriority.red ||
-            b.methaneStatus == MethaneStatus.high)
-        .toList();
-    final medium = bins
-        .where((b) => b.priority == BinPriority.yellow && !urgent.contains(b))
-        .toList();
-    final low = bins
-        .where((b) => b.priority == BinPriority.green && !urgent.contains(b))
-        .toList();
-
-    // --- Nearest-neighbour within each group ---
-    // Start from driver position for urgent
-    final orderedUrgent =
-        _nearestNeighbour(urgent, driverLat, driverLng);
-
-    // Start medium from the LAST bin in the ordered urgent result
-    final afterUrgentLat =
-        orderedUrgent.isNotEmpty ? orderedUrgent.last.lat : driverLat;
-    final afterUrgentLng =
-        orderedUrgent.isNotEmpty ? orderedUrgent.last.lng : driverLng;
-    final orderedMedium =
-        _nearestNeighbour(medium, afterUrgentLat, afterUrgentLng);
-
-    // Start low from the LAST bin in the ordered medium result
-    final afterMediumLat =
-        orderedMedium.isNotEmpty ? orderedMedium.last.lat : afterUrgentLat;
-    final afterMediumLng =
-        orderedMedium.isNotEmpty ? orderedMedium.last.lng : afterUrgentLng;
-    final orderedLow =
-        _nearestNeighbour(low, afterMediumLat, afterMediumLng);
-
-    return [...orderedUrgent, ...orderedMedium, ...orderedLow];
+    return _nearestNeighbour(bins, driverLat, driverLng);
   }
 
   /// Greedy nearest-neighbour TSP heuristic.
