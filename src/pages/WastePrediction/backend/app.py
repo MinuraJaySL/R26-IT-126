@@ -116,16 +116,10 @@ def fetch_rainfall_forecast(week_start_date=None):
     """Fetch 7-day total rainfall for a target week.
 
     Strategy:
-<<<<<<< HEAD
       1. If recorded in CSV dataset (2023–2025): return dataset recorded actuals.
       2. If within past 92 days to next 16 days: query Open-Meteo API (actual recorded past weather or live forecast).
       3. If older past date: query Open-Meteo Historical Archive API (exact past weather).
       4. If far future (beyond 16 days): use historical monthly average from training data.
-=======
-      - If past week is recorded in CSV dataset: return exact recorded rainfall.
-      - If within Open-Meteo 16-day forecast: return live Open-Meteo forecast.
-      - If far future/other: return historical monthly average from training data.
->>>>>>> c70ba2b (Model improvements)
     """
     today = datetime.now().date()
 
@@ -134,10 +128,7 @@ def fetch_rainfall_forecast(week_start_date=None):
         week_start_date = today + timedelta(days=days_until_monday)
 
     week_end_date = week_start_date + timedelta(days=6)
-<<<<<<< HEAD
     target_dates = [str(week_start_date + timedelta(days=i)) for i in range(7)]
-=======
->>>>>>> c70ba2b (Model improvements)
 
     # 1. Check if date is in the historical CSV dataset
     csv_path = os.path.join(MODEL_DIR, "Real_Zone_Waste_Dataset.csv")
@@ -167,24 +158,17 @@ def fetch_rainfall_forecast(week_start_date=None):
     except Exception as e:
         print(f"[DEBUG] CSV date lookup skipped: {e}")
 
-<<<<<<< HEAD
     # 2. Try Open-Meteo combined past + forecast (past 92 days to next 16 days)
     # NOTE: The forecast endpoint returns None for precipitation_sum on older past dates
     #       (~30+ days ago). We only use this result if all 7 target dates have REAL (non-None)
     #       values. If any are None for a past week we fall through to the Archive API (step 3).
-=======
-    # 2. Try Open-Meteo 16-day live forecast for current/near-future dates
->>>>>>> c70ba2b (Model improvements)
     try:
         resp = http_requests.get(OPEN_METEO_URL, params={
             "latitude": KALUTARA_LAT,
             "longitude": KALUTARA_LON,
             "daily": "precipitation_sum",
             "timezone": "Asia/Colombo",
-<<<<<<< HEAD
             "past_days": 92,
-=======
->>>>>>> c70ba2b (Model improvements)
             "forecast_days": 16,
         }, timeout=10)
         resp.raise_for_status()
@@ -193,7 +177,6 @@ def fetch_rainfall_forecast(week_start_date=None):
         daily = data.get("daily", {})
         dates = daily.get("time", [])
         precip = daily.get("precipitation_sum", [])
-<<<<<<< HEAD
         # Keep None distinct so we can detect missing data (do NOT convert to 0.0 yet)
         raw_map = {d: p for d, p in zip(dates, precip)}
 
@@ -266,32 +249,6 @@ def fetch_rainfall_forecast(week_start_date=None):
             print(f"[WARN] Open-Meteo Archive query failed: {e}")
 
     # 4. Far future beyond 16 days — use historical monthly average from training dataset
-=======
-        date_map = {d: float(p) if p is not None else 0.0 for d, p in zip(dates, precip)}
-
-        target_dates = [str(week_start_date + timedelta(days=i)) for i in range(7)]
-        matched_dates = [d for d in target_dates if d in date_map]
-
-        if len(matched_dates) == 7:
-            daily_data = [{"date": d, "precipitation_mm": date_map[d]} for d in target_dates]
-            total_mm = sum(d["precipitation_mm"] for d in daily_data)
-            return {
-                "success": True,
-                "source": "Open-Meteo (Live Forecast)",
-                "sourceType": "forecast",
-                "location": "Kalutara, Sri Lanka",
-                "coordinates": {"lat": KALUTARA_LAT, "lon": KALUTARA_LON},
-                "total_mm": round(total_mm, 1),
-                "daily": daily_data,
-                "forecast_days": 7,
-                "weekStart": str(week_start_date),
-                "weekEnd": str(week_end_date),
-            }
-    except Exception as e:
-        print(f"[WARN] Open-Meteo API query failed: {e}")
-
-    # 3. Beyond forecast range & not in CSV — use historical monthly average
->>>>>>> c70ba2b (Model improvements)
     month = week_start_date.month
     avg_mm = MONTHLY_AVG_RAINFALL.get(month, 40.0)
     daily_avg = round(avg_mm / 7, 1)
