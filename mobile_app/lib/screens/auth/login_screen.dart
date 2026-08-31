@@ -116,11 +116,22 @@ class _LoginScreenState extends State<LoginScreen>
                       if (ok) {
                         Navigator.pop(dialogContext);
                         if (!mounted) return;
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(
-                            content: Text(
-                              'If an account exists for that email, a reset link has been sent — check your inbox.',
+                        showDialog<void>(
+                          context: context,
+                          builder: (successContext) => AlertDialog(
+                            icon: const Icon(Icons.mark_email_read_outlined,
+                                color: Colors.green, size: 44),
+                            title: const Text('Check Your Inbox'),
+                            content: const Text(
+                              'If an account exists for that email, a reset link has been sent.',
+                              textAlign: TextAlign.center,
                             ),
+                            actions: [
+                              ElevatedButton(
+                                onPressed: () => Navigator.pop(successContext),
+                                child: const Text('OK'),
+                              ),
+                            ],
                           ),
                         );
                       } else {
