@@ -17,16 +17,19 @@ import math
 import os
 import warnings
 from datetime import datetime, timedelta, timezone
+from functools import wraps
 
 import joblib
+import jwt
 import numpy as np
 import pandas as pd
 import requests as http_requests
+from werkzeug.security import generate_password_hash, check_password_hash
 from bson import ObjectId
 from dotenv import load_dotenv
 from flask import Flask, jsonify, request
 from flask_cors import CORS
-from pymongo import MongoClient
+from pymongo import MongoClient, ASCENDING
 
 # ── Load environment variables ───────────────────────────────────────────────
 load_dotenv()
@@ -34,15 +37,24 @@ load_dotenv()
 MONGODB_URI = os.getenv("MONGODB_URI")
 DB_NAME = os.getenv("DB_NAME", "waste_prediction")
 PORT = int(os.getenv("PORT", 5000))
+JWT_SECRET = os.getenv("JWT_SECRET", "change_me_in_production")
+JWT_EXPIRY_HOURS = 24
 
 # ── Flask app setup ──────────────────────────────────────────────────────────
 app = Flask(__name__)
-CORS(app)
+CORS(app, resources={r"/*": {"origins": "*"}})
 
 # ── MongoDB connection ───────────────────────────────────────────────────────
-client = MongoClient(MONGODB_URI, serverSelectionTimeoutMS=5000)
+client = MongoClient(MONGODB_URI, serverSelectionTimeoutMS=15000)
 db = client[DB_NAME]
 predictions_collection = db["predictions"]
+users_collection = db["users"]
+
+# Safely ensure unique email index in background
+try:
+    users_collection.create_index([("email", ASCENDING)], unique=True)
+except Exception as e:
+    print(f"[INFO] MongoDB users index notice: {e}")
 
 # ── Load ML models ───────────────────────────────────────────────────────────
 MODEL_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -963,6 +975,152 @@ def backtest():
         return jsonify({"success": False, "error": str(e)}), 500
 
 
+# ══════════════════════════════════════════════════════════════════════════════
+# AUTH HELPERS
+# ══════════════════════════════════════════════════════════════════════════════
+
+def generate_token(user_id: str, email: str, name: str) -> str:
+    """Generate a signed JWT token valid for JWT_EXPIRY_HOURS hours."""
+    payload = {
+        "sub": user_id,
+        "email": email,
+        "name": name,
+        "iat": datetime.now(timezone.utc),
+        "exp": datetime.now(timezone.utc) + timedelta(hours=JWT_EXPIRY_HOURS),
+    }
+    return jwt.encode(payload, JWT_SECRET, algorithm="HS256")
+
+
+def token_required(f):
+    """Decorator that enforces a valid Bearer JWT on a route."""
+    @wraps(f)
+    def decorated(*args, **kwargs):
+        auth_header = request.headers.get("Authorization", "")
+        if not auth_header.startswith("Bearer "):
+            return jsonify({"success": False, "error": "Missing or invalid Authorization header"}), 401
+        token = auth_header.split(" ", 1)[1]
+        try:
+            payload = jwt.decode(token, JWT_SECRET, algorithms=["HS256"])
+            request.current_user = payload
+        except jwt.ExpiredSignatureError:
+            return jsonify({"success": False, "error": "Token has expired"}), 401
+        except jwt.InvalidTokenError:
+            return jsonify({"success": False, "error": "Invalid token"}), 401
+        return f(*args, **kwargs)
+    return decorated
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# AUTH ENDPOINTS
+# ══════════════════════════════════════════════════════════════════════════════
+
+@app.route("/api/auth/register", methods=["POST"])
+def auth_register():
+    """
+    Register a new user.
+
+    Request body: { "name": str, "email": str, "password": str }
+    Returns: { success, token, user: { id, name, email } }
+    """
+    try:
+        data = request.get_json() or {}
+        name = (data.get("name") or "").strip()
+        email = (data.get("email") or "").strip().lower()
+        password = data.get("password") or ""
+
+        # Basic validation
+        if not name:
+            return jsonify({"success": False, "error": "Name is required"}), 400
+        if not email or "@" not in email:
+            return jsonify({"success": False, "error": "A valid email is required"}), 400
+        if len(password) < 6:
+            return jsonify({"success": False, "error": "Password must be at least 6 characters"}), 400
+
+        # Hash password securely
+        hashed = generate_password_hash(password)
+
+        user_doc = {
+            "name": name,
+            "email": email,
+            "password": hashed,
+            "role": "user",
+            "createdAt": datetime.now(timezone.utc).isoformat(),
+        }
+
+        result = users_collection.insert_one(user_doc)
+        user_id = str(result.inserted_id)
+        token = generate_token(user_id, email, name)
+
+        return jsonify({
+            "success": True,
+            "token": token,
+            "user": {"id": user_id, "name": name, "email": email, "role": "user"},
+        }), 201
+
+    except Exception as e:
+        if "E11000" in str(e) or "duplicate" in str(e).lower():
+            return jsonify({"success": False, "error": "An account with this email already exists"}), 409
+        import traceback; traceback.print_exc()
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@app.route("/api/auth/login", methods=["POST"])
+def auth_login():
+    """
+    Log in with email + password.
+
+    Request body: { "email": str, "password": str }
+    Returns: { success, token, user: { id, name, email, role } }
+    """
+    try:
+        data = request.get_json() or {}
+        email = (data.get("email") or "").strip().lower()
+        password = data.get("password") or ""
+
+        if not email or not password:
+            return jsonify({"success": False, "error": "Email and password are required"}), 400
+
+        user = users_collection.find_one({"email": email})
+        if not user:
+            return jsonify({"success": False, "error": "Invalid email or password"}), 401
+
+        if not check_password_hash(user["password"], password):
+            return jsonify({"success": False, "error": "Invalid email or password"}), 401
+
+        user_id = str(user["_id"])
+        name = user.get("name", "")
+        role = user.get("role", "user")
+        token = generate_token(user_id, email, name)
+
+        return jsonify({
+            "success": True,
+            "token": token,
+            "user": {"id": user_id, "name": name, "email": email, "role": role},
+        })
+
+    except Exception as e:
+        import traceback; traceback.print_exc()
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@app.route("/api/auth/me", methods=["GET"])
+@token_required
+def auth_me():
+    """
+    Return the currently authenticated user's info.
+    Requires a valid Bearer token in the Authorization header.
+    """
+    payload = request.current_user
+    return jsonify({
+        "success": True,
+        "user": {
+            "id": payload.get("sub"),
+            "name": payload.get("name"),
+            "email": payload.get("email"),
+        },
+    })
+
+
 @app.route("/api/health", methods=["GET"])
 def health():
     """Health check endpoint."""
@@ -981,7 +1139,8 @@ if __name__ == "__main__":
     print(f"   MongoDB: {DB_NAME}")
     print(f"   Models: wet={type(wet_model).__name__}, dry={type(dry_model).__name__}")
     print(f"   Zones: {', '.join(VALID_ZONES)}")
-    print(f"   Truck capacity: {TRUCK_CAPACITY_TONS} tons\n")
+    print(f"   Truck capacity: {TRUCK_CAPACITY_TONS} tons")
+    print(f"   Auth endpoints: /api/auth/register, /api/auth/login, /api/auth/me\n")
     # use_reloader=False prevents WinError 10038 on Windows + Python 3.13
     # (harmless bug in socketserver cleanup during hot-reload thread shutdown)
     app.run(debug=True, port=PORT, host="0.0.0.0", use_reloader=False)

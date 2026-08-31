@@ -1,8 +1,12 @@
 import { useTheme } from '../context/ThemeContext';
-import { Sun, Moon, Bell, Search } from 'lucide-react';
+import { useAuth } from '../context/AuthContext';
+import { Sun, Moon, LogOut } from 'lucide-react';
 
 export default function TopNavbar() {
   const { isDark, toggleTheme } = useTheme();
+  const { user, logout } = useAuth();
+
+  const initial = user?.name ? user.name.charAt(0).toUpperCase() : 'U';
 
   return (
     <header
@@ -15,53 +19,55 @@ export default function TopNavbar() {
       {/* Left - Page info */}
       <div className="flex items-center gap-4">
         <div>
-          <h2 className="text-lg font-semibold" style={{ color: 'var(--text-primary)' }}>
+          {/* <h2 className="text-lg font-semibold" style={{ color: 'var(--text-primary)' }}>
             Smart Waste Management
-          </h2>
+          </h2> */}
         </div>
       </div>
 
       {/* Right - Actions */}
       <div className="flex items-center gap-3">
-        {/* Search */}
-        {/* <div
-          className="hidden items-center gap-2 rounded-xl border px-3 py-2 md:flex"
-          style={{ borderColor: 'var(--border-color)', backgroundColor: 'var(--bg-tertiary)' }}
-        >
-          <Search size={16} style={{ color: 'var(--text-muted)' }} />
-          <input
-            type="text"
-            placeholder="Search..."
-            className="w-40 bg-transparent text-sm outline-none"
-            style={{ color: 'var(--text-primary)' }}
-          />
-        </div> */}
-
-        {/* Notifications */}
-        {/* <button
-          className="relative flex h-10 w-10 items-center justify-center rounded-xl transition-colors hover:bg-surface-100 dark:hover:bg-surface-700/50"
-          style={{ color: 'var(--text-secondary)' }}
-        >
-          <Bell size={20} />
-          <span className="absolute right-2 top-2 h-2 w-2 rounded-full bg-red-500 status-dot" />
-        </button> */}
-
         {/* Theme toggle */}
         <button
           onClick={toggleTheme}
+          aria-label="Toggle theme"
           className="flex h-10 w-10 items-center justify-center rounded-xl transition-colors hover:bg-surface-100 dark:hover:bg-surface-700/50"
           style={{ color: 'var(--text-secondary)' }}
         >
           {isDark ? <Sun size={20} /> : <Moon size={20} />}
         </button>
 
-        {/* Profile */}
-        <div className="flex items-center gap-2">
-          <div className="flex h-9 w-9 items-center justify-center rounded-full bg-green-900 text-sm font-bold text-white">
-            M
+        {/* Profile & User details */}
+        {user && (
+          <div className="flex items-center gap-3 pl-2">
+            <div className="hidden flex-col text-right sm:flex">
+              <span className="text-xs font-semibold" style={{ color: 'var(--text-primary)' }}>
+                {user.name}
+              </span>
+              <span className="text-[10px]" style={{ color: 'var(--text-muted)' }}>
+                {user.email}
+              </span>
+            </div>
+            <div
+              className="flex h-9 w-9 items-center justify-center rounded-full text-sm font-bold text-white shadow-sm"
+              style={{ background: '#10b981' }}
+            >
+              {initial}
+            </div>
+
+            {/* Logout button */}
+            <button
+              onClick={logout}
+              title="Log out"
+              aria-label="Log out"
+              className="flex h-9 w-9 items-center justify-center rounded-xl text-rose-500 transition-colors hover:bg-rose-500/10"
+            >
+              <LogOut size={18} />
+            </button>
           </div>
-        </div>
+        )}
       </div>
     </header>
   );
 }
+

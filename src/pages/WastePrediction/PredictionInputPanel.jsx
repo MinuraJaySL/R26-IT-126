@@ -43,12 +43,12 @@ function toISO(date) {
   return date.toISOString().slice(0, 10);
 }
 
-// Check if week is in the near future (0 to 15 days ahead)
+// Check if week is within Open-Meteo forecast window (16 days)
 function isWithinForecast(monday) {
   const today = new Date();
   today.setHours(0, 0, 0, 0);
   const days = Math.floor((monday - today) / 86400000);
-  return days >= 0 && days <= 15;
+  return days <= 15;
 }
 
 export default function PredictionInputPanel({ onPredict, loading }) {
@@ -127,6 +127,9 @@ export default function PredictionInputPanel({ onPredict, loading }) {
               <h3 className="text-lg font-bold" style={{ color: 'var(--text-primary)' }}>
                 Kalutara Municipal Council
               </h3>
+              <p className="text-xs" style={{ color: 'var(--text-secondary)' }}>
+                Weekly waste prediction powered by XGBoost ML models
+              </p>
             </div>
           </div>
           <div className="flex items-center gap-5">
@@ -188,10 +191,10 @@ export default function PredictionInputPanel({ onPredict, loading }) {
                   </p>
                 </div>
                 <div className="flex items-center gap-1.5">
-                  {rainfall?.sourceType === 'historical_actual' ? (
-                    <span className="rounded px-2 py-0.5 text-[10px] font-bold bg-cyan-500/10 text-cyan-500">Dataset</span>
-                  ) : liveData ? (
+                  {rainfall?.sourceType === 'forecast' ? (
                     <span className="rounded px-2 py-0.5 text-[10px] font-bold bg-emerald-500/10 text-emerald-500">Live</span>
+                  ) : rainfall?.sourceType === 'historical_actual' ? (
+                    <span className="rounded px-2 py-0.5 text-[10px] font-bold bg-cyan-500/10 text-cyan-500">Dataset</span>
                   ) : (
                     <span className="rounded px-2 py-0.5 text-[10px] font-bold bg-amber-500/10 text-amber-500">Avg</span>
                   )}
@@ -224,16 +227,16 @@ export default function PredictionInputPanel({ onPredict, loading }) {
               <div className="flex items-center justify-between">
                 <span style={{ color: 'var(--text-muted)' }}>Rainfall Source</span>
                 <span className={`font-bold ${
-                  rainfall?.sourceType === 'historical_actual'
-                    ? 'text-cyan-500'
-                    : liveData
-                      ? 'text-emerald-500'
+                  rainfall?.sourceType === 'forecast'
+                    ? 'text-emerald-500'
+                    : rainfall?.sourceType === 'historical_actual'
+                      ? 'text-cyan-500'
                       : 'text-amber-500'
                 }`}>
-                  {rainfall?.sourceType === 'historical_actual'
-                    ? 'Recorded Dataset'
-                    : liveData
-                      ? 'Live Forecast'
+                  {rainfall?.sourceType === 'forecast'
+                    ? 'Live Forecast'
+                    : rainfall?.sourceType === 'historical_actual'
+                      ? 'Recorded Dataset'
                       : 'Historical Monthly Avg'}
                 </span>
               </div>
@@ -305,7 +308,11 @@ export default function PredictionInputPanel({ onPredict, loading }) {
                   Rainfall Forecast
                 </h3>
                 <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
-                  {liveData ? 'Open-Meteo Live API' : 'Weekly Average'}
+                  {rainfall?.sourceType === 'forecast'
+                    ? 'Open-Meteo Live API'
+                    : rainfall?.sourceType === 'historical_actual'
+                      ? 'Recorded from Dataset'
+                      : 'Historical Monthly Average'}
                 </p>
               </div>
             </div>
@@ -319,13 +326,13 @@ export default function PredictionInputPanel({ onPredict, loading }) {
             <div className="flex flex-col items-center justify-center py-8">
               <Loader2 size={32} className="animate-spin text-cyan-500" />
               <p className="mt-3 text-xs font-medium" style={{ color: 'var(--text-muted)' }}>
-                {liveData ? 'Fetching live forecast...' : 'Loading...'}
+                Fetching rainfall data...
               </p>
             </div>
           ) : (
             <>
               {/* Source badge */}
-              {/* <div className={`mb-3 inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-[10px] font-bold ${
+              <div className={`mb-3 inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-[10px] font-bold ${
                 rainfall?.sourceType === 'forecast'
                   ? 'bg-emerald-500/10 text-emerald-500'
                   : rainfall?.sourceType === 'historical_actual'
@@ -334,7 +341,7 @@ export default function PredictionInputPanel({ onPredict, loading }) {
               }`}>
                 {rainfall?.sourceType === 'forecast' || rainfall?.sourceType === 'historical_actual' ? <CheckCircle size={10} /> : <AlertCircle size={10} />}
                 {rainfall?.source}
-              </div> */}
+              </div>
 
               {/* Total rainfall hero */}
               <div className="mb-4 rounded-xl p-4 text-center" style={{ background: 'linear-gradient(135deg, rgba(6,182,212,0.1), rgba(6,182,212,0.05))' }}>
