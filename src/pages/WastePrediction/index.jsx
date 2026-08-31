@@ -88,9 +88,9 @@ export default function WastePrediction() {
       {/* Header */}
       <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }}>
         <div className="flex items-center gap-3">
-          <div className="flex h-10 w-10 items-center justify-center rounded-xl gradient-primary">
+          {/* <div className="flex h-10 w-10 items-center justify-center rounded-xl gradient-primary">
             <BrainCircuit size={22} className="text-white" />
-          </div>
+          </div> */}
           <div>
             <h1 className="text-2xl font-bold" style={{ color: 'var(--text-primary)' }}>
               Municipal Waste Prediction & Fleet Planning
