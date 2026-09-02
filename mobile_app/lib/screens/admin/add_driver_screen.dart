@@ -39,9 +39,25 @@ class _AddDriverScreenState extends State<AddDriverScreen> {
         vehicleNumber: _vehicleCtrl.text.trim(),
       );
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Driver account created — credentials emailed to ${_emailCtrl.text.trim()}')),
+      final email = _emailCtrl.text.trim();
+      await showDialog<void>(
+        context: context,
+        builder: (dialogContext) => AlertDialog(
+          icon: const Icon(Icons.check_circle_outline, color: Colors.green, size: 44),
+          title: const Text('Driver Account Created'),
+          content: Text(
+            'Credentials have been emailed to $email.',
+            textAlign: TextAlign.center,
+          ),
+          actions: [
+            ElevatedButton(
+              onPressed: () => Navigator.pop(dialogContext),
+              child: const Text('OK'),
+            ),
+          ],
+        ),
       );
+      if (!mounted) return;
       Navigator.of(context).pop();
     } on AdminApiException catch (e) {
       if (!mounted) return;
