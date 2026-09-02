@@ -69,12 +69,25 @@ class _FlagPlacementScreenState extends State<FlagPlacementScreen> {
       expiresAt: DateTime.now().add(Duration(hours: _timeWindowHours)),
     );
     await _fs.createPickupRequest(req);
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Pickup request placed!')),
-      );
-      context.pop();
-    }
+    if (!mounted) return;
+    await showDialog<void>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        icon: const Icon(Icons.check_circle_outline, color: Colors.green, size: 44),
+        title: const Text('Pickup Request Placed'),
+        content: const Text(
+          'A driver will be notified. You can track progress from My Pickups.',
+          textAlign: TextAlign.center,
+        ),
+        actions: [
+          ElevatedButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: const Text('OK'),
+          ),
+        ],
+      ),
+    );
+    if (mounted) context.pop();
   }
 
   @override
