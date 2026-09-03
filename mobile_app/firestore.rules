@@ -116,5 +116,33 @@ service cloud.firestore {
     match /rateLimits/{ip} {
       allow read, write: if false;
     }
+
+    // Driver posts "truck coming to this ward on this date"; any signed-in
+    // user can read (residents filter client-side to their own ward).
+    // `sent` is flipped only by the Worker's scheduled handler (service
+    // account, bypasses these rules) once the fixed-time push actually
+    // goes out — never by a client, so update/delete are locked to false.
+    match /collectionAnnouncements/{id} {
+      allow read: if isSignedIn();
+      allow create: if isDriver() && request.resource.data.driverId == request.auth.uid;
+      allow update, delete: if false;
+    }
+
+    // In-app notification inbox — written only by the Worker (service
+    // account, bypasses these rules) alongside each FCM push, so a record
+    // survives even if the push itself was missed. A user may read their
+    // own notifications and flip `read`, but can't touch anything else
+    // about them (title/body/type/relatedId/userId must stay unchanged) —
+    // and can never create or delete one directly.
+    match /notifications/{id} {
+      allow read: if isSignedIn() && resource.data.userId == request.auth.uid;
+      allow update: if isSignedIn() && resource.data.userId == request.auth.uid &&
+        request.resource.data.userId == resource.data.userId &&
+        request.resource.data.title == resource.data.title &&
+        request.resource.data.body == resource.data.body &&
+        request.resource.data.type == resource.data.type &&
+        request.resource.data.relatedId == resource.data.relatedId;
+      allow create, delete: if false;
+    }
   }
 }

@@ -60,6 +60,14 @@ class _DriverDashboardState extends State<DriverDashboard> {
             ),
             const SizedBox(height: 48),
             _DashCard(
+              icon: Icons.campaign_outlined,
+              title: 'Announce Collection',
+              subtitle: 'Tell a ward when your truck is coming tomorrow',
+              color: Colors.teal,
+              onTap: () => context.push('/driver/announce'),
+            ),
+            const SizedBox(height: 16),
+            _DashCard(
               icon: Icons.map,
               title: 'Bin Priority Map',
               subtitle: 'View Red/Yellow/Green bins + suggested route',

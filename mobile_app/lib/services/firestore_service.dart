@@ -1,6 +1,8 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import '../models/app_notification.dart';
 import '../models/bin_model.dart';
 import '../models/bin_report.dart';
+import '../models/collection_announcement.dart';
 import '../models/pickup_request.dart';
 import '../models/recovery_request.dart';
 import 'notification_service.dart';
@@ -318,5 +320,72 @@ class FirestoreService {
   // tracking them immediately, instead of leaving a stale last-known position.
   Future<void> deleteDriverLocation(String driverId) {
     return _db.collection('driverLocations').doc(driverId).delete();
+  }
+
+  // Collection announcements — driver posts "truck coming to this ward on
+  // this date"; residents in that ward see it here immediately (in-app),
+  // and separately get a push at a fixed daily time via the Worker's
+  // scheduled handler (see cf-worker's `scheduled` export).
+  Future<void> createCollectionAnnouncement(CollectionAnnouncement a) {
+    return _db.collection('collectionAnnouncements').doc(a.id).set(a.toMap());
+  }
+
+  // Announcements for one ward, today's date or later — sorted soonest
+  // first. Filtering to >= today happens client-side (not a where clause)
+  // to avoid needing a composite index for ward + collectionDate.
+  Stream<List<CollectionAnnouncement>> watchAnnouncementsForWard(String ward) {
+    final startOfToday = DateTime.now();
+    final todayDateOnly = DateTime(startOfToday.year, startOfToday.month, startOfToday.day);
+    return _db
+        .collection('collectionAnnouncements')
+        .where('ward', isEqualTo: ward)
+        .snapshots()
+        .map((snap) {
+      final list = snap.docs
+          .map(CollectionAnnouncement.fromFirestore)
+          .where((a) => !a.collectionDate.isBefore(todayDateOnly))
+          .toList();
+      list.sort((a, b) => a.collectionDate.compareTo(b.collectionDate));
+      return list;
+    });
+  }
+
+  // A driver's own posted announcements, most recent first.
+  Stream<List<CollectionAnnouncement>> watchMyAnnouncements(String driverId) {
+    return _db
+        .collection('collectionAnnouncements')
+        .where('driverId', isEqualTo: driverId)
+        .snapshots()
+        .map((snap) {
+      final list = snap.docs.map(CollectionAnnouncement.fromFirestore).toList();
+      list.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+      return list;
+    });
+  }
+
+  // In-app notification inbox — records are written server-side by the
+  // Worker (see cf-worker's writeNotification), never by this app.
+  Stream<List<AppNotification>> watchMyNotifications(String userId) {
+    return _db
+        .collection('notifications')
+        .where('userId', isEqualTo: userId)
+        .snapshots()
+        .map((snap) {
+      final list = snap.docs.map(AppNotification.fromFirestore).toList();
+      list.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+      return list;
+    });
+  }
+
+  Future<void> markNotificationRead(String id) {
+    return _db.collection('notifications').doc(id).update({'read': true});
+  }
+
+  Future<void> markAllNotificationsRead(List<String> ids) async {
+    final batch = _db.batch();
+    for (final id in ids) {
+      batch.update(_db.collection('notifications').doc(id), {'read': true});
+    }
+    await batch.commit();
   }
 }

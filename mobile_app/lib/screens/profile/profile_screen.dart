@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
+import '../../config/colombo_wards.dart';
 import '../../models/app_user.dart';
 import '../../providers/auth_provider.dart';
 import '../../widgets/app_input_decoration.dart';
@@ -19,6 +20,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   final _formKey = GlobalKey<FormState>();
   late final TextEditingController _nameCtrl;
   late final TextEditingController _phoneCtrl;
+  late String? _selectedWard;
   bool _busy = false;
 
   @override
@@ -27,6 +29,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     final user = context.read<AuthProvider>().user;
     _nameCtrl = TextEditingController(text: user?.name ?? '');
     _phoneCtrl = TextEditingController(text: user?.phone ?? '');
+    _selectedWard = (user?.ward.isNotEmpty ?? false) ? user!.ward : null;
   }
 
   @override
@@ -38,11 +41,18 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   Future<void> _save() async {
     if (!_formKey.currentState!.validate()) return;
+    if (_selectedWard == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please select your ward')),
+      );
+      return;
+    }
     setState(() => _busy = true);
     final auth = context.read<AuthProvider>();
     final ok = await auth.completeProfile(
       _nameCtrl.text.trim(),
       _phoneCtrl.text.trim(),
+      ward: _selectedWard,
     );
     if (!mounted) return;
     setState(() => _busy = false);
@@ -176,6 +186,55 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         if (value.isEmpty) return 'Phone number is required';
                         if (!_phoneRegex.hasMatch(value)) return 'Enter a valid phone number';
                         return null;
+                      },
+                    ),
+                    const SizedBox(height: 16),
+                    Autocomplete<String>(
+                      initialValue: TextEditingValue(text: _selectedWard ?? ''),
+                      optionsBuilder: (textValue) {
+                        if (textValue.text.isEmpty) return colomboWards;
+                        final query = textValue.text.toLowerCase();
+                        return colomboWards
+                            .where((w) => w.toLowerCase().contains(query));
+                      },
+                      onSelected: (selection) =>
+                          setState(() => _selectedWard = selection),
+                      fieldViewBuilder: (context, controller, focusNode, onSubmit) {
+                        return TextFormField(
+                          controller: controller,
+                          focusNode: focusNode,
+                          decoration: appFieldDecoration(
+                            scheme,
+                            label: 'Ward (Colombo MC)',
+                            icon: Icons.location_city_outlined,
+                          ),
+                          onChanged: (_) => _selectedWard = null,
+                        );
+                      },
+                      optionsViewBuilder: (context, onSelected, options) {
+                        return Align(
+                          alignment: Alignment.topLeft,
+                          child: Material(
+                            elevation: 4,
+                            borderRadius: BorderRadius.circular(12),
+                            child: ConstrainedBox(
+                              constraints: const BoxConstraints(maxHeight: 240, maxWidth: 400),
+                              child: ListView.builder(
+                                padding: EdgeInsets.zero,
+                                shrinkWrap: true,
+                                itemCount: options.length,
+                                itemBuilder: (context, i) {
+                                  final option = options.elementAt(i);
+                                  return ListTile(
+                                    dense: true,
+                                    title: Text(option),
+                                    onTap: () => onSelected(option),
+                                  );
+                                },
+                              ),
+                            ),
+                          ),
+                        );
                       },
                     ),
                     const SizedBox(height: 20),

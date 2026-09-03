@@ -14,9 +14,12 @@ import '../screens/resident/complete_profile_screen.dart';
 import '../screens/resident/flag_placement_screen.dart';
 import '../screens/resident/my_pickups_screen.dart';
 import '../screens/resident/my_reports_screen.dart';
+import '../screens/resident/notifications_screen.dart';
 import '../screens/resident/report_issue_screen.dart';
 import '../screens/resident/track_truck_screen.dart';
 import '../screens/driver/driver_dashboard.dart';
+import '../screens/driver/announce_collection_screen.dart';
+import '../screens/driver/my_announcements_screen.dart';
 import '../screens/driver/driver_bin_reports_screen.dart';
 import '../screens/driver/report_navigation_screen.dart';
 import '../screens/driver/missed_navigation_screen.dart';
@@ -125,10 +128,22 @@ GoRouter buildRouter() {
         builder: (ctx, _) => const MyReportsScreen(),
       ),
       GoRoute(
+        path: '/resident/notifications',
+        builder: (ctx, _) => const NotificationsScreen(),
+      ),
+      GoRoute(
         path: '/resident/report',
         builder: (ctx, _) => const ReportIssueScreen(),
       ),
       GoRoute(path: '/driver', builder: (ctx, _) => const DriverDashboard()),
+      GoRoute(
+        path: '/driver/announce',
+        builder: (ctx, _) => const AnnounceCollectionScreen(),
+      ),
+      GoRoute(
+        path: '/driver/announcements',
+        builder: (ctx, _) => const MyAnnouncementsScreen(),
+      ),
       GoRoute(path: '/driver/map', builder: (ctx, _) => const DriverMapScreen()),
       GoRoute(
         path: '/driver/requests',
