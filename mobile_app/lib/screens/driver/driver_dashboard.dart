@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
+import '../../models/bin_model.dart';
 import '../../models/bin_report.dart';
 import '../../models/pickup_request.dart';
 import '../../providers/auth_provider.dart';
@@ -67,20 +68,34 @@ class _DriverDashboardState extends State<DriverDashboard> {
               onTap: () => context.push('/driver/announce'),
             ),
             const SizedBox(height: 16),
-            _DashCard(
-              icon: Icons.map,
-              title: 'Bin Priority Map',
-              subtitle: 'View Red/Yellow/Green bins + suggested route',
-              color: Colors.indigo,
-              onTap: () => context.push('/driver/map'),
+            StreamBuilder<List<SmartBin>>(
+              stream: FirestoreService().watchBins(),
+              builder: (context, snap) {
+                final binCount = snap.data?.length ?? 0;
+                return _DashCard(
+                  icon: Icons.map,
+                  title: 'Bin Priority Map',
+                  subtitle: 'View Red/Yellow/Green bins + suggested route',
+                  color: Colors.indigo,
+                  badgeCount: binCount,
+                  onTap: () => context.push('/driver/map'),
+                );
+              },
             ),
             const SizedBox(height: 16),
-            _DashCard(
-              icon: Icons.flag,
-              title: 'Pickup Requests',
-              subtitle: 'View & collect active resident requests',
-              color: Colors.green,
-              onTap: () => context.push('/driver/requests'),
+            StreamBuilder<List<PickupRequest>>(
+              stream: FirestoreService().watchActiveRequests(),
+              builder: (context, snap) {
+                final activeCount = snap.data?.length ?? 0;
+                return _DashCard(
+                  icon: Icons.flag,
+                  title: 'Pickup Requests',
+                  subtitle: 'View & collect active resident requests',
+                  color: Colors.green,
+                  badgeCount: activeCount,
+                  onTap: () => context.push('/driver/requests'),
+                );
+              },
             ),
             const SizedBox(height: 16),
             StreamBuilder<List<PickupRequest>>(
