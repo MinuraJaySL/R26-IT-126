@@ -32,6 +32,18 @@
  *                                 or gas status; authenticated with a shared device
  *                                 secret (not a Firebase ID token — devices have no
  *                                 Firebase Auth identity of their own)
+ *   POST /admin/run-announcements — admin-only manual trigger for the same
+ *                                 next-day-collection send the cron below runs;
+ *                                 lets you test/demo it without waiting for the
+ *                                 actual scheduled fire
+ *
+ * Also exports `scheduled` — a Cron Trigger (see wrangler.toml [triggers]) that
+ * runs once daily and pushes a notification to every resident in a ward with
+ * an un-sent, due CollectionAnnouncement (see the Flutter app's
+ * AnnounceCollectionScreen). Residents see the announcement in-app the moment
+ * a driver posts it (plain Firestore read, no Worker involved) — this cron is
+ * only the *fixed-time push* on top of that, so a driver posting early in the
+ * day doesn't spam residents immediately.
  */
 
 export interface Env {
@@ -379,6 +391,50 @@ async function firestoreIncrement(
   });
 }
 
+/**
+ * Single-field equality query via Firestore's :runQuery REST endpoint.
+ * Deliberately limited to one equality filter — the Flutter side avoids
+ * composite indexes throughout this app (see firestore_service.dart's
+ * fetchLatestDeniedRequest comment) by filtering/sorting the rest
+ * client-side instead; this mirrors that same choice on the Worker side so
+ * nothing here depends on an index existing in the Firebase console.
+ */
+async function firestoreQueryEquals(
+  env: Env,
+  token: string,
+  collectionId: string,
+  field: string,
+  value: FirestoreValue
+): Promise<{ id: string; fields: Record<string, string | number | boolean | null> }[]> {
+  const url = `https://firestore.googleapis.com/v1/projects/${env.FIREBASE_PROJECT_ID}/databases/(default)/documents:runQuery`;
+  const res = await fetch(url, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+    body: JSON.stringify({
+      structuredQuery: {
+        from: [{ collectionId }],
+        where: {
+          fieldFilter: {
+            field: { fieldPath: field },
+            op: "EQUAL",
+            value,
+          },
+        },
+      },
+    }),
+  });
+  if (!res.ok) throw new ApiError("Backend storage error. Please try again.", 500);
+  const rows = (await res.json()) as {
+    document?: { name: string; fields?: Record<string, FirestoreValue> };
+  }[];
+  return rows
+    .filter((r) => r.document)
+    .map((r) => ({
+      id: r.document!.name.split("/").pop()!,
+      fields: fromFields(r.document!.fields),
+    }));
+}
+
 // ---------------------------------------------------------------------------
 // Firebase ID token verification — lets this Worker trust "I am uid X"
 // claims from the Flutter app without the Admin SDK. Firebase ID tokens are
@@ -665,6 +721,32 @@ async function sendPushNotification(
   }
 }
 
+/**
+ * Writes a persistent in-app notification record — always alongside an FCM
+ * push, never instead of one. This is what powers the resident's
+ * Notifications inbox / unread badge: a push can be missed (permission
+ * denied, device offline, no token on file), but this record survives
+ * regardless, so the resident still sees it next time they open the app.
+ */
+async function writeNotification(
+  env: Env,
+  token: string,
+  userId: string,
+  title: string,
+  body: string,
+  type: string,
+  relatedId: string
+): Promise<void> {
+  const id = crypto.randomUUID();
+  await firestoreWrite(
+    env,
+    token,
+    `notifications/${id}`,
+    { userId, title, body, type, relatedId, createdAt: new Date(), read: false },
+    false
+  );
+}
+
 // ---------------------------------------------------------------------------
 // Endpoint handlers
 // ---------------------------------------------------------------------------
@@ -912,16 +994,22 @@ async function handleCreateDriver(req: Request, env: Env): Promise<Response> {
 
 /**
  * POST /notify  { idToken, event, id }
- * Sends a push notification for one of five real, in-app events. The client
- * supplies only an event name and a Firestore document id — never the
- * notification text — and this Worker re-derives the target user and the
- * message itself by reading the real document. That's deliberate: if the
- * client could supply arbitrary title/body text, any signed-in user could
- * use this endpoint to push arbitrary spam to any other user. Requiring a
- * valid idToken only confirms "a real signed-in app user triggered this" —
- * it does not otherwise restrict who can trigger which event, matching the
- * trust level already extended elsewhere in this app (e.g. any driver can
- * already resolve any bin report directly via firestore.rules).
+ * Records + pushes a notification for one of five real, in-app events. The
+ * client supplies only an event name and a Firestore document id — never
+ * the notification text — and this Worker re-derives the target user and
+ * the message itself by reading the real document. That's deliberate: if
+ * the client could supply arbitrary title/body text, any signed-in user
+ * could use this endpoint to push arbitrary spam to any other user.
+ * Requiring a valid idToken only confirms "a real signed-in app user
+ * triggered this" — it does not otherwise restrict who can trigger which
+ * event, matching the trust level already extended elsewhere in this app
+ * (e.g. any driver can already resolve any bin report directly via
+ * firestore.rules).
+ *
+ * The in-app notification record (writeNotification) is written
+ * unconditionally once a target user is known; the FCM push after it is
+ * best-effort on top — a resident with no device token, or whose push
+ * fails, still sees the record in their in-app inbox either way.
  */
 async function handleNotify(req: Request, env: Env): Promise<Response> {
   const body = (await req.json()) as { idToken?: string; event?: string; id?: string };
@@ -995,11 +1083,13 @@ async function handleNotify(req: Request, env: Env): Promise<Response> {
 
   if (!targetUid) return json({ ok: true, skipped: true });
 
+  await writeNotification(env, token, targetUid, title, messageBody, body.event!, id);
+
   const userDoc = await firestoreGet(env, token, `users/${targetUid}`);
   const fcmToken = userDoc?.fcmToken as string | undefined;
-  if (!fcmToken) return json({ ok: true, skipped: true }); // no device token on file
-
-  await sendPushNotification(env, token, fcmToken, title, messageBody);
+  if (fcmToken) {
+    await sendPushNotification(env, token, fcmToken, title, messageBody);
+  }
   return json({ ok: true });
 }
 
@@ -1075,6 +1165,99 @@ async function handleBinStatus(req: Request, env: Env): Promise<Response> {
 }
 
 // ---------------------------------------------------------------------------
+// Next-day collection announcements — the fixed-time push on top of the
+// in-app banner (see AnnounceCollectionScreen / ResidentDashboard in the
+// Flutter app). Colombo has no DST, so a fixed +5:30 offset is safe year-round.
+// ---------------------------------------------------------------------------
+
+const COLOMBO_OFFSET_MS = 5.5 * 60 * 60 * 1000;
+
+/** Midnight-to-midnight bounds, in real UTC instants, for "today + [daysAhead]
+ * days" as a Colombo-local calendar date. */
+function colomboDateBounds(daysAhead: number): { startMs: number; endMs: number } {
+  const nowColombo = new Date(Date.now() + COLOMBO_OFFSET_MS);
+  const y = nowColombo.getUTCFullYear();
+  const m = nowColombo.getUTCMonth();
+  const d = nowColombo.getUTCDate() + daysAhead;
+  const startMs = Date.UTC(y, m, d) - COLOMBO_OFFSET_MS;
+  const endMs = Date.UTC(y, m, d + 1) - COLOMBO_OFFSET_MS;
+  return { startMs, endMs };
+}
+
+/**
+ * Finds every un-sent CollectionAnnouncement whose collectionDate is
+ * tomorrow (Colombo-local), pushes a notification to every resident whose
+ * `ward` matches, and marks each as sent. Shared by the cron trigger below
+ * and the manual /admin/run-announcements endpoint, so both run identical
+ * logic — the admin endpoint exists purely so this can be tested/demoed
+ * without waiting for the real scheduled fire.
+ */
+async function sendDueAnnouncements(env: Env): Promise<{ processed: number; notified: number }> {
+  const token = await getGoogleAccessToken(env);
+  const { startMs, endMs } = colomboDateBounds(1); // tomorrow
+
+  const unsent = await firestoreQueryEquals(env, token, "collectionAnnouncements", "sent", {
+    booleanValue: false,
+  });
+
+  let processed = 0;
+  let notified = 0;
+
+  for (const row of unsent) {
+    const collectionDateMs = row.fields.collectionDate as number | null;
+    if (!collectionDateMs || collectionDateMs < startMs || collectionDateMs >= endMs) {
+      continue; // not due yet (or already past — left for the driver to notice)
+    }
+    processed++;
+
+    const ward = row.fields.ward as string;
+    const note = (row.fields.note as string) || "";
+    const title = "Collection Tomorrow";
+    const body = note
+      ? `Truck coming to ${ward} tomorrow. ${note}`
+      : `Truck coming to ${ward} tomorrow.`;
+
+    const residents = await firestoreQueryEquals(env, token, "users", "ward", {
+      stringValue: ward,
+    });
+    for (const resident of residents) {
+      await writeNotification(env, token, resident.id, title, body, "announcement", row.id);
+      const fcmToken = resident.fields.fcmToken as string | undefined;
+      if (fcmToken) {
+        await sendPushNotification(env, token, fcmToken, title, body);
+      }
+      notified++;
+    }
+
+    await firestoreWrite(env, token, `collectionAnnouncements/${row.id}`, { sent: true }, true);
+  }
+
+  return { processed, notified };
+}
+
+/**
+ * POST /admin/run-announcements  { idToken }
+ * Admin-only. Runs sendDueAnnouncements() immediately instead of waiting
+ * for the cron trigger — for testing and live demos.
+ */
+async function handleRunAnnouncements(req: Request, env: Env): Promise<Response> {
+  const body = (await req.json()) as { idToken?: string };
+  if (typeof body.idToken !== "string" || !body.idToken) {
+    throw new ApiError("Missing session token.", 401);
+  }
+  const callerUid = await verifyFirebaseIdToken(env, body.idToken);
+
+  const token = await getGoogleAccessToken(env);
+  const callerDoc = await firestoreGet(env, token, `users/${callerUid}`);
+  if (!callerDoc || callerDoc.role !== "admin") {
+    throw new ApiError("You do not have permission to perform this action.", 403);
+  }
+
+  const result = await sendDueAnnouncements(env);
+  return json({ ok: true, ...result });
+}
+
+// ---------------------------------------------------------------------------
 // Router
 // ---------------------------------------------------------------------------
 
@@ -1102,6 +1285,8 @@ export default {
           return await handleNotify(req, env);
         case "/bin-status":
           return await handleBinStatus(req, env);
+        case "/admin/run-announcements":
+          return await handleRunAnnouncements(req, env);
         default:
           return errorJson("Not found.", 404);
       }
@@ -1110,5 +1295,12 @@ export default {
       console.error(err);
       return errorJson("Unexpected server error.", 500);
     }
+  },
+
+  // Cron Trigger — see wrangler.toml [triggers]. Runs sendDueAnnouncements()
+  // once daily at the fixed send time.
+  async scheduled(_event: ScheduledController, env: Env, _ctx: ExecutionContext): Promise<void> {
+    const result = await sendDueAnnouncements(env);
+    console.log(`[scheduled] processed=${result.processed} notified=${result.notified}`);
   },
 };

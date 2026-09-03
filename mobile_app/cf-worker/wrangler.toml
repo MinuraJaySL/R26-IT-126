@@ -2,6 +2,13 @@ name = "greensweep-verification-worker"
 main = "src/index.ts"
 compatibility_date = "2024-11-01"
 
+# Runs sendDueAnnouncements() once daily. "30 12 * * *" is UTC — Colombo has
+# no DST, so 12:30 UTC is always 18:00 (6 PM) Colombo time, matching the
+# cutoff hour in AnnounceCollectionScreen. Change both together if you pick
+# a different send time.
+[triggers]
+crons = ["30 12 * * *"]
+
 # Non-secret configuration. Real values are set with:
 #   wrangler secret put FIREBASE_SERVICE_ACCOUNT_KEY
 #   wrangler secret put EMAILJS_PRIVATE_KEY

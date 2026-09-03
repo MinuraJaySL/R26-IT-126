@@ -94,18 +94,21 @@ class AuthProvider extends ChangeNotifier {
     }
   }
 
-  /// Completes a resident's profile (name + phone) after self-registration.
-  /// Only ever touches `name`/`phone` — never `role`, so it stays within
+  /// Completes a resident's profile (name + phone [+ ward]) after
+  /// self-registration, or updates it later from the profile screen. Only
+  /// ever touches `name`/`phone`/`ward` — never `role`, so it stays within
   /// what a signed-in user is allowed to update on their own doc.
-  Future<bool> completeProfile(String name, String phone) async {
+  Future<bool> completeProfile(String name, String phone, {String? ward}) async {
     if (_user == null) return false;
     _error = null;
     try {
+      final data = <String, dynamic>{'name': name, 'phone': phone};
+      if (ward != null) data['ward'] = ward;
       await FirebaseFirestore.instance
           .collection('users')
           .doc(_user!.uid)
-          .update({'name': name, 'phone': phone});
-      _user = _user!.copyWith(name: name, phone: phone);
+          .update(data);
+      _user = _user!.copyWith(name: name, phone: phone, ward: ward);
       notifyListeners();
       return true;
     } catch (e) {
