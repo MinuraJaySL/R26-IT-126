@@ -1,7 +1,7 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
-import 'package:uuid/uuid.dart';
 
 import '../../config/colombo_wards.dart';
 import '../../models/collection_announcement.dart';
@@ -99,15 +99,22 @@ class _AnnounceCollectionScreenState extends State<AnnounceCollectionScreen> {
     setState(() => _busy = true);
     final driverId = context.read<AuthProvider>().user!.uid;
     final announcement = CollectionAnnouncement(
-      id: const Uuid().v4(),
+      id: CollectionAnnouncement.idFor(_selectedWard!, _selectedDate),
       driverId: driverId,
       ward: _selectedWard!,
       collectionDate: _selectedDate,
       note: _noteCtrl.text.trim(),
       createdAt: DateTime.now(),
     );
+    final duplicateMessage =
+        'Collection in $_selectedWard on ${_formatDate(_selectedDate)} has '
+        'already been announced. Residents will only be notified once.';
 
     try {
+      if (await _fs.announcementExists(_selectedWard!, _selectedDate)) {
+        if (mounted) _showError(duplicateMessage);
+        return;
+      }
       await _fs.createCollectionAnnouncement(announcement);
       if (!mounted) return;
       await showDialog<void>(
@@ -130,6 +137,14 @@ class _AnnounceCollectionScreenState extends State<AnnounceCollectionScreen> {
         ),
       );
       if (mounted) Navigator.of(context).pop();
+    } on FirebaseException catch (e) {
+      // The pre-check above can lose a race with another driver posting the
+      // same ward+date — the rules then reject this write as an update of
+      // the doc that just appeared.
+      if (!mounted) return;
+      _showError(e.code == 'permission-denied'
+          ? duplicateMessage
+          : 'Could not post announcement: ${e.message ?? e.code}');
     } catch (e) {
       if (mounted) _showError('Could not post announcement: $e');
     } finally {

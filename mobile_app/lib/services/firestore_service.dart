@@ -330,6 +330,27 @@ class FirestoreService {
     return _db.collection('collectionAnnouncements').doc(a.id).set(a.toMap());
   }
 
+  // True if any driver has already announced collection for this ward on
+  // this date — a second one would push the same residents twice. Single
+  // equality filter + client-side date match, same no-composite-index
+  // choice as watchAnnouncementsForWard below.
+  Future<bool> announcementExists(String ward, DateTime collectionDate) async {
+    final snap = await _db
+        .collection('collectionAnnouncements')
+        .where('ward', isEqualTo: ward)
+        .get();
+    return snap.docs.map(CollectionAnnouncement.fromFirestore).any((a) =>
+        a.collectionDate.year == collectionDate.year &&
+        a.collectionDate.month == collectionDate.month &&
+        a.collectionDate.day == collectionDate.day);
+  }
+
+  // Only succeeds for the driver's own announcement while it's still
+  // un-sent — enforced server-side by firestore.rules, not just here.
+  Future<void> cancelCollectionAnnouncement(String id) {
+    return _db.collection('collectionAnnouncements').doc(id).delete();
+  }
+
   // Announcements for one ward, today's date or later — sorted soonest
   // first. Filtering to >= today happens client-side (not a where clause)
   // to avoid needing a composite index for ward + collectionDate.

@@ -6,8 +6,12 @@ compatibility_date = "2024-11-01"
 # no DST, so 12:30 UTC is always 18:00 (6 PM) Colombo time, matching the
 # cutoff hour in AnnounceCollectionScreen. Change both together if you pick
 # a different send time.
+#
+# "30 0 * * *" (6 AM Colombo) is the catch-up run: it only sends announcements
+# for that same day which the previous evening's run missed. Keep it in sync
+# with CATCH_UP_CRON in src/index.ts.
 [triggers]
-crons = ["30 12 * * *"]
+crons = ["30 12 * * *", "30 0 * * *"]
 
 # Non-secret configuration. Real values are set with:
 #   wrangler secret put FIREBASE_SERVICE_ACCOUNT_KEY

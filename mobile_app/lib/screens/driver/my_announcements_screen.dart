@@ -59,6 +59,50 @@ class _AnnouncementCard extends StatelessWidget {
   // lands the evening before collectionDate, not on the day it was posted.
   static const _cutoffHour = 18;
 
+  // Only offered while un-sent (see firestore.rules) — once residents have
+  // been notified, deleting the record wouldn't take that back.
+  Future<void> _confirmCancel(BuildContext context) async {
+    final messenger = ScaffoldMessenger.of(context);
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Cancel Announcement?'),
+        content: Text(
+          'Residents in ${a.ward} will not be notified about collection on '
+          '${_formatDate(a.collectionDate)}.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(false),
+            child: const Text('Keep'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.of(dialogContext).pop(true),
+            style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.red, foregroundColor: Colors.white),
+            child: const Text('Cancel Announcement'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+
+    try {
+      await FirestoreService().cancelCollectionAnnouncement(a.id);
+      messenger.showSnackBar(
+        const SnackBar(content: Text('Announcement cancelled.')),
+      );
+    } catch (e) {
+      // Most likely the push went out between this card rendering and the
+      // tap — the rules refuse to delete a sent announcement.
+      messenger.showSnackBar(
+        const SnackBar(
+          content: Text('Could not cancel — residents may already have been notified.'),
+        ),
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
@@ -66,6 +110,8 @@ class _AnnouncementCard extends StatelessWidget {
     final now = DateTime.now();
     final alreadyPastSendTime =
         now.isAfter(DateTime(sendAt.year, sendAt.month, sendAt.day, _cutoffHour));
+    final collectionDayOver =
+        now.isAfter(a.collectionDate.add(const Duration(days: 1)));
 
     final String statusLabel;
     final Color statusColor;
@@ -74,9 +120,16 @@ class _AnnouncementCard extends StatelessWidget {
       statusLabel = 'NOTIFIED';
       statusColor = Colors.green;
       statusIcon = Icons.check_circle_outline;
+    } else if (collectionDayOver) {
+      // Neither the evening send nor the next morning's catch-up run got to
+      // it before the collection date passed — it will never go out now.
+      statusLabel = 'NOT SENT';
+      statusColor = Colors.grey;
+      statusIcon = Icons.error_outline;
     } else if (alreadyPastSendTime) {
-      // Send time has passed but the cron hasn't flipped `sent` yet in what
-      // we've fetched — a brief window right around 6 PM, not a stuck state.
+      // Send time has passed but `sent` isn't flipped yet — either the brief
+      // window right around 6 PM, or the evening run missed it and the
+      // 6 AM catch-up run will pick it up.
       statusLabel = 'SENDING';
       statusColor = Colors.orange;
       statusIcon = Icons.hourglass_top;
@@ -139,6 +192,16 @@ class _AnnouncementCard extends StatelessWidget {
               const SizedBox(height: 6),
               Text(a.note, style: const TextStyle(fontSize: 13)),
             ],
+            if (!a.sent && !collectionDayOver)
+              Align(
+                alignment: Alignment.centerRight,
+                child: TextButton.icon(
+                  icon: const Icon(Icons.cancel_outlined, size: 18),
+                  label: const Text('Cancel'),
+                  style: TextButton.styleFrom(foregroundColor: Colors.red),
+                  onPressed: () => _confirmCancel(context),
+                ),
+              ),
           ],
         ),
       ),

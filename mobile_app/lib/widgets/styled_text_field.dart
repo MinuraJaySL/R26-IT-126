@@ -17,6 +17,8 @@ class StyledTextField extends StatelessWidget {
     this.maxLength,
     this.textAlign = TextAlign.start,
     this.style,
+    this.focusNode,
+    this.onChanged,
   });
 
   final TextEditingController controller;
@@ -29,11 +31,15 @@ class StyledTextField extends StatelessWidget {
   final int? maxLength;
   final TextAlign textAlign;
   final TextStyle? style;
+  final FocusNode? focusNode;
+  final ValueChanged<String>? onChanged;
 
   @override
   Widget build(BuildContext context) {
     return TextField(
       controller: controller,
+      focusNode: focusNode,
+      onChanged: onChanged,
       obscureText: obscureText,
       keyboardType: keyboardType,
       autofocus: autofocus,

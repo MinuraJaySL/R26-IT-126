@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
+import '../../config/colombo_wards.dart';
 import '../../providers/auth_provider.dart';
 import '../../theme/app_colors.dart';
 import '../../widgets/gradient_background.dart';
@@ -20,7 +21,18 @@ class CompleteProfileScreen extends StatefulWidget {
 class _CompleteProfileScreenState extends State<CompleteProfileScreen> {
   final _nameCtrl = TextEditingController();
   final _phoneCtrl = TextEditingController();
+  String? _selectedWard;
   bool _busy = false;
+
+  @override
+  void initState() {
+    super.initState();
+    // Residents who finished this gate before ward was part of it land here
+    // again with name/phone already saved — prefill so they only add a ward.
+    final user = context.read<AuthProvider>().user;
+    _nameCtrl.text = user?.name ?? '';
+    _phoneCtrl.text = user?.phone ?? '';
+  }
 
   @override
   void dispose() {
@@ -44,9 +56,13 @@ class _CompleteProfileScreenState extends State<CompleteProfileScreen> {
       _showError('Please enter a valid phone number.');
       return;
     }
+    if (_selectedWard == null) {
+      _showError('Please select your ward from the list.');
+      return;
+    }
     setState(() => _busy = true);
     final auth = context.read<AuthProvider>();
-    final ok = await auth.completeProfile(name, phone);
+    final ok = await auth.completeProfile(name, phone, ward: _selectedWard);
     if (!mounted) return;
     setState(() => _busy = false);
     if (ok) {
@@ -104,7 +120,7 @@ class _CompleteProfileScreenState extends State<CompleteProfileScreen> {
                         controller: _nameCtrl,
                         label: 'Full name',
                         icon: Icons.person_outline,
-                        autofocus: true,
+                        autofocus: _nameCtrl.text.isEmpty,
                       ),
                       const SizedBox(height: 16),
                       StyledTextField(
@@ -112,6 +128,55 @@ class _CompleteProfileScreenState extends State<CompleteProfileScreen> {
                         label: 'Phone number',
                         icon: Icons.phone_outlined,
                         keyboardType: TextInputType.phone,
+                      ),
+                      const SizedBox(height: 16),
+                      // Required here (not just on the Profile screen) —
+                      // collection announcements are targeted by ward, so a
+                      // resident without one would never see or be pushed any.
+                      Autocomplete<String>(
+                        optionsBuilder: (textValue) {
+                          if (textValue.text.isEmpty) return colomboWards;
+                          final query = textValue.text.toLowerCase();
+                          return colomboWards
+                              .where((w) => w.toLowerCase().contains(query));
+                        },
+                        onSelected: (selection) =>
+                            setState(() => _selectedWard = selection),
+                        fieldViewBuilder: (context, controller, focusNode, onSubmit) {
+                          return StyledTextField(
+                            controller: controller,
+                            focusNode: focusNode,
+                            label: 'Ward (Colombo MC)',
+                            icon: Icons.location_city_outlined,
+                            onChanged: (_) => _selectedWard = null,
+                          );
+                        },
+                        optionsViewBuilder: (context, onSelected, options) {
+                          return Align(
+                            alignment: Alignment.topLeft,
+                            child: Material(
+                              elevation: 4,
+                              borderRadius: BorderRadius.circular(12),
+                              child: ConstrainedBox(
+                                constraints:
+                                    const BoxConstraints(maxHeight: 240, maxWidth: 400),
+                                child: ListView.builder(
+                                  padding: EdgeInsets.zero,
+                                  shrinkWrap: true,
+                                  itemCount: options.length,
+                                  itemBuilder: (context, i) {
+                                    final option = options.elementAt(i);
+                                    return ListTile(
+                                      dense: true,
+                                      title: Text(option),
+                                      onTap: () => onSelected(option),
+                                    );
+                                  },
+                                ),
+                              ),
+                            ),
+                          );
+                        },
                       ),
                       const SizedBox(height: 20),
                       GradientButton(

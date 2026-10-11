@@ -121,11 +121,20 @@ service cloud.firestore {
     // user can read (residents filter client-side to their own ward).
     // `sent` is flipped only by the Worker's scheduled handler (service
     // account, bypasses these rules) once the fixed-time push actually
-    // goes out — never by a client, so update/delete are locked to false.
+    // goes out — never by a client, so update is locked to false. That lock
+    // is also what blocks duplicates: the app uses a deterministic doc id
+    // per ward+date, so a second post for the same ward and date is an
+    // update of the existing doc and is denied here.
+    // A driver may cancel (delete) their own announcement, but only while
+    // it's still un-sent — once residents have been notified there's
+    // nothing left to take back.
     match /collectionAnnouncements/{id} {
       allow read: if isSignedIn();
       allow create: if isDriver() && request.resource.data.driverId == request.auth.uid;
-      allow update, delete: if false;
+      allow update: if false;
+      allow delete: if isDriver() &&
+        resource.data.driverId == request.auth.uid &&
+        resource.data.sent == false;
     }
 
     // In-app notification inbox — written only by the Worker (service

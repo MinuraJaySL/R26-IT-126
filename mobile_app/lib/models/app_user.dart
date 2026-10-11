@@ -28,9 +28,12 @@ class AppUser {
   });
 
   // Residents self-register with just email/password (see the OTP signup
-  // flow) — name and phone are collected afterward via the profile
+  // flow) — name, phone and ward are collected afterward via the profile
   // completion gate, so an empty name here means that gate hasn't run yet.
-  bool get hasCompleteProfile => name.isNotEmpty;
+  // An empty ward sends an older resident (who passed the gate before ward
+  // was part of it) back through once — without a ward they'd never receive
+  // a collection announcement. Only consulted for residents (see app_router).
+  bool get hasCompleteProfile => name.isNotEmpty && ward.isNotEmpty;
 
   factory AppUser.fromMap(String uid, Map<String, dynamic> data) {
     return AppUser(

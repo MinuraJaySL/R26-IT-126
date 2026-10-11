@@ -23,6 +23,16 @@ class CollectionAnnouncement {
     this.sent = false,
   });
 
+  // Deterministic doc id — one announcement per ward per date. Posting a
+  // second one targets the same doc, which firestore.rules rejects as an
+  // update, so duplicates are blocked server-side even if two drivers post
+  // at the same moment.
+  static String idFor(String ward, DateTime collectionDate) {
+    final m = collectionDate.month.toString().padLeft(2, '0');
+    final d = collectionDate.day.toString().padLeft(2, '0');
+    return '${ward.replaceAll(' ', '_')}_${collectionDate.year}-$m-$d';
+  }
+
   factory CollectionAnnouncement.fromFirestore(DocumentSnapshot doc) {
     final d = doc.data() as Map<String, dynamic>;
     return CollectionAnnouncement(
