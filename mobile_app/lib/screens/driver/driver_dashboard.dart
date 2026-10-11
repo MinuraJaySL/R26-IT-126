@@ -63,7 +63,7 @@ class _DriverDashboardState extends State<DriverDashboard> {
             _DashCard(
               icon: Icons.campaign_outlined,
               title: 'Announce Collection',
-              subtitle: 'Tell a ward when your truck is coming tomorrow',
+              subtitle: 'Tell a ward when your truck is coming',
               color: Colors.teal,
               onTap: () => context.push('/driver/announce'),
             ),

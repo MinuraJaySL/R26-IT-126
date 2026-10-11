@@ -121,20 +121,41 @@ service cloud.firestore {
     // user can read (residents filter client-side to their own ward).
     // `sent` is flipped only by the Worker's scheduled handler (service
     // account, bypasses these rules) once the fixed-time push actually
-    // goes out — never by a client, so update is locked to false. That lock
-    // is also what blocks duplicates: the app uses a deterministic doc id
-    // per ward+date, so a second post for the same ward and date is an
-    // update of the existing doc and is denied here.
+    // goes out — a client can only ever write it as false.
+    //
+    // The app uses a deterministic doc id per ward+date, so there is one
+    // announcement per ward per date and a later post is an update of the
+    // same doc: the latest details win. Any driver may post that update
+    // (not only the original author — it's whoever has the newer
+    // information), but it must be under their own id, can't move to a
+    // different ward/date, and always goes back to un-sent so the Worker
+    // sends the new details.
+    //
+    // `isUpdate` is decided here, not by the client: it's true exactly when
+    // the doc being replaced had already been sent (or was itself such an
+    // update). That flag is what lets the Worker send it immediately instead
+    // of waiting for 6 PM, so a first announcement can never claim it.
+    //
     // A driver may cancel (delete) their own announcement, but only while
-    // it's still un-sent — once residents have been notified there's
-    // nothing left to take back.
+    // it's still un-sent and isn't an update — once residents have been
+    // notified there's nothing left to take back.
     match /collectionAnnouncements/{id} {
       allow read: if isSignedIn();
-      allow create: if isDriver() && request.resource.data.driverId == request.auth.uid;
-      allow update: if false;
+      allow create: if isDriver() &&
+        request.resource.data.driverId == request.auth.uid &&
+        request.resource.data.sent == false &&
+        request.resource.data.get('isUpdate', false) == false;
+      allow update: if isDriver() &&
+        request.resource.data.driverId == request.auth.uid &&
+        request.resource.data.sent == false &&
+        request.resource.data.ward == resource.data.ward &&
+        request.resource.data.collectionDate == resource.data.collectionDate &&
+        request.resource.data.get('isUpdate', false) ==
+          (resource.data.sent == true || resource.data.get('isUpdate', false) == true);
       allow delete: if isDriver() &&
         resource.data.driverId == request.auth.uid &&
-        resource.data.sent == false;
+        resource.data.sent == false &&
+        resource.data.get('isUpdate', false) == false;
     }
 
     // In-app notification inbox — written only by the Worker (service

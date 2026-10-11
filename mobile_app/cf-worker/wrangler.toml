@@ -2,16 +2,17 @@ name = "greensweep-verification-worker"
 main = "src/index.ts"
 compatibility_date = "2024-11-01"
 
-# Runs sendDueAnnouncements() once daily. "30 12 * * *" is UTC — Colombo has
+# Runs sendDueAnnouncements() each evening. "30 12 * * *" is UTC — Colombo has
 # no DST, so 12:30 UTC is always 18:00 (6 PM) Colombo time, matching the
 # cutoff hour in AnnounceCollectionScreen. Change both together if you pick
 # a different send time.
 #
-# "30 0 * * *" (6 AM Colombo) is the catch-up run: it only sends announcements
-# for that same day which the previous evening's run missed. Keep it in sync
-# with CATCH_UP_CRON in src/index.ts.
+# "30 14 * * *" (8 PM Colombo) is the retry run: it sends anything for
+# tomorrow the 6 PM run missed. It is also the last moment anything goes out —
+# keep it in sync with UPDATE_DEADLINE_HOUR in src/index.ts and
+# _updateDeadlineHour in AnnounceCollectionScreen.
 [triggers]
-crons = ["30 12 * * *", "30 0 * * *"]
+crons = ["30 12 * * *", "30 14 * * *"]
 
 # Non-secret configuration. Real values are set with:
 #   wrangler secret put FIREBASE_SERVICE_ACCOUNT_KEY

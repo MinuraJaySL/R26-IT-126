@@ -143,4 +143,41 @@ class AdminService {
       data['error'] as String? ?? 'Something went wrong. Please try again.',
     );
   }
+
+  /// Calls the Worker's admin-only endpoint that sends one collection
+  /// announcement to its ward's residents right away instead of at the
+  /// scheduled time. The Worker only agrees for an un-sent announcement
+  /// whose collection date is tomorrow, and only before the evening
+  /// deadline — same limits as its scheduled runs. Returns how many
+  /// residents were notified.
+  Future<int> sendAnnouncement(String id) async {
+    final user = _auth.currentUser;
+    if (user == null) {
+      throw AdminApiException('You must be signed in to do this.');
+    }
+    final idToken = await user.getIdToken();
+
+    late final http.Response res;
+    try {
+      res = await http
+          .post(
+            Uri.parse('${VerificationApiConfig.baseUrl}/admin/send-announcement'),
+            headers: const {'Content-Type': 'application/json'},
+            body: jsonEncode({'idToken': idToken, 'id': id}),
+          )
+          .timeout(const Duration(seconds: 30));
+    } catch (_) {
+      throw AdminApiException(
+        'Could not reach the server. Check your connection and try again.',
+      );
+    }
+
+    final data = jsonDecode(res.body) as Map<String, dynamic>;
+    if (res.statusCode >= 200 && res.statusCode < 300) {
+      return (data['notified'] as num?)?.toInt() ?? 0;
+    }
+    throw AdminApiException(
+      data['error'] as String? ?? 'Something went wrong. Please try again.',
+    );
+  }
 }

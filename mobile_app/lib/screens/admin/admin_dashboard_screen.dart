@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../models/collection_announcement.dart';
 import '../../models/recovery_request.dart';
 import '../../services/admin_service.dart';
 import '../../services/firestore_service.dart';
@@ -110,6 +111,20 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                     subtitle: 'Disabled accounts asking to be re-enabled',
                     badgeCount: openCount,
                     onTap: () => context.push('/admin/recovery-requests'),
+                  );
+                },
+              ),
+              const SizedBox(height: 12),
+              StreamBuilder<List<CollectionAnnouncement>>(
+                stream: FirestoreService().watchPendingAnnouncements(),
+                builder: (context, snap) {
+                  return _ActionTile(
+                    scheme: scheme,
+                    icon: Icons.campaign_outlined,
+                    title: 'Scheduled Announcements',
+                    subtitle: 'Review and send collection announcements by ward',
+                    badgeCount: snap.data?.length ?? 0,
+                    onTap: () => context.push('/admin/announcements'),
                   );
                 },
               ),

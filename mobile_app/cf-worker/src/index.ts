@@ -32,19 +32,21 @@
  *                                 or gas status; authenticated with a shared device
  *                                 secret (not a Firebase ID token — devices have no
  *                                 Firebase Auth identity of their own)
- *   POST /admin/run-announcements — admin-only manual trigger for the same
- *                                 next-day-collection send the cron below runs;
- *                                 lets you test/demo it without waiting for the
- *                                 actual scheduled fire
+ *   POST /admin/send-announcement — admin-only: sends one chosen un-sent
+ *                                 collection announcement right away instead
+ *                                 of at the scheduled time (tomorrow's only)
+ *   POST /send-announcement-update — driver-only: sends an *update* to an
+ *                                 already-sent collection announcement right
+ *                                 away, up to 8 PM the evening before
  *
  * Also exports `scheduled` — a Cron Trigger (see wrangler.toml [triggers]) that
  * runs each evening and pushes a notification to every resident in a ward with
- * an un-sent, due CollectionAnnouncement (see the Flutter app's
- * AnnounceCollectionScreen). Residents see the announcement in-app the moment
- * a driver posts it (plain Firestore read, no Worker involved) — this cron is
- * only the *fixed-time push* on top of that, so a driver posting early in the
- * day doesn't spam residents immediately. A second, morning run catches up
- * any announcement for that day the evening run missed.
+ * an un-sent CollectionAnnouncement for tomorrow (see the Flutter app's
+ * AnnounceCollectionScreen). Residents see nothing when a driver posts — this
+ * cron's *fixed-time push* (plus its inbox record) is the announcement, so a
+ * driver posting early in the day doesn't reach residents until the evening
+ * before collection. A second run two hours later retries anything the first
+ * missed. Nothing is ever sent on the collection day itself.
  */
 
 export interface Env {
@@ -1166,16 +1168,20 @@ async function handleBinStatus(req: Request, env: Env): Promise<Response> {
 }
 
 // ---------------------------------------------------------------------------
-// Next-day collection announcements — the fixed-time push on top of the
-// in-app banner (see AnnounceCollectionScreen / ResidentDashboard in the
-// Flutter app). Colombo has no DST, so a fixed +5:30 offset is safe year-round.
+// Next-day collection announcements — the fixed-time push (see
+// AnnounceCollectionScreen in the Flutter app). Colombo has no DST, so a
+// fixed +5:30 offset is safe year-round.
 // ---------------------------------------------------------------------------
 
 const COLOMBO_OFFSET_MS = 5.5 * 60 * 60 * 1000;
 
-// Must match the morning entry in wrangler.toml's [triggers] crons exactly —
-// `scheduled` compares event.cron against it to tell the two runs apart.
-const CATCH_UP_CRON = "30 0 * * *";
+// Nothing announcement-related is ever sent to residents after this hour
+// (Colombo-local) on the evening before collection, and nothing at all on
+// the collection day itself — a notice that late is too late to plan
+// around. It's both the deadline for a driver's update to go out and the
+// time of the final retry cron (see wrangler.toml [triggers]); the Flutter
+// app's AnnounceCollectionScreen mirrors it as its update deadline.
+const UPDATE_DEADLINE_HOUR = 20;
 
 /** Midnight-to-midnight bounds, in real UTC instants, for "today + [daysAhead]
  * days" as a Colombo-local calendar date. */
@@ -1189,30 +1195,66 @@ function colomboDateBounds(daysAhead: number): { startMs: number; endMs: number 
   return { startMs, endMs };
 }
 
+type AnnouncementFields = Record<string, string | number | boolean | null>;
+
 /**
- * Finds every un-sent CollectionAnnouncement whose collectionDate falls on
- * the requested day(s) (Colombo-local), pushes a notification to every
- * resident whose `ward` matches, and marks each as sent.
- *
- * "tomorrow" is the normal evening-before send. "today" is the catch-up for
- * an announcement that evening run missed (cron didn't fire, or errored
- * partway) — without it that announcement would never match "tomorrow"
- * again and would stay un-sent forever. The two are separate crons (see
- * `scheduled` below) so the morning catch-up never sends a next-day
- * announcement early; the manual /admin/run-announcements endpoint runs
- * both, purely so this can be tested/demoed without waiting for a real
- * scheduled fire.
+ * Sends one announcement to every resident whose `ward` matches (inbox
+ * record + best-effort push) and marks it sent. The wording is derived here
+ * from the doc's own fields — `cancelled` flips it from "truck coming" to
+ * "no collection", and `isUpdate` (set when this post replaced one residents
+ * were already notified about) prefixes the title so it reads as a change,
+ * not a repeat.
  */
-async function sendDueAnnouncements(
+async function sendAnnouncement(
   env: Env,
-  days: { today: boolean; tomorrow: boolean }
-): Promise<{ processed: number; notified: number }> {
+  token: string,
+  id: string,
+  fields: AnnouncementFields
+): Promise<number> {
+  const ward = fields.ward as string;
+  const note = (fields.note as string) || "";
+  const cancelled = fields.cancelled === true;
+  const baseTitle = cancelled ? "Collection Cancelled" : "Collection Tomorrow";
+  const title = fields.isUpdate === true ? `Update: ${baseTitle}` : baseTitle;
+  const lead = cancelled
+    ? `No collection in ${ward} tomorrow.`
+    : `Truck coming to ${ward} tomorrow.`;
+  const body = note ? `${lead} ${note}` : lead;
+
+  const residents = await firestoreQueryEquals(env, token, "users", "ward", {
+    stringValue: ward,
+  });
+  let notified = 0;
+  for (const resident of residents) {
+    await writeNotification(env, token, resident.id, title, body, "announcement", id);
+    const fcmToken = resident.fields.fcmToken as string | undefined;
+    if (fcmToken) {
+      await sendPushNotification(env, token, fcmToken, title, body);
+    }
+    notified++;
+  }
+
+  await firestoreWrite(
+    env,
+    token,
+    `collectionAnnouncements/${encodeURIComponent(id)}`,
+    { sent: true },
+    true
+  );
+  return notified;
+}
+
+/**
+ * Finds every un-sent CollectionAnnouncement whose collectionDate is
+ * tomorrow (Colombo-local) and sends it. There is one doc per ward per date
+ * (see the app's CollectionAnnouncement.idFor), and a later post overwrites
+ * an earlier un-sent one, so whatever is in the doc when this runs is
+ * already the latest version. Only ever "tomorrow" — never today — so
+ * residents get nothing on the collection day itself. Run by both crons.
+ */
+async function sendDueAnnouncements(env: Env): Promise<{ processed: number; notified: number }> {
   const token = await getGoogleAccessToken(env);
-  const todayBounds = colomboDateBounds(0);
-  const tomorrowBounds = colomboDateBounds(1);
-  const tomorrowStartMs = tomorrowBounds.startMs;
-  const startMs = days.today ? todayBounds.startMs : tomorrowBounds.startMs;
-  const endMs = days.tomorrow ? tomorrowBounds.endMs : todayBounds.endMs;
+  const { startMs, endMs } = colomboDateBounds(1); // tomorrow
 
   const unsent = await firestoreQueryEquals(env, token, "collectionAnnouncements", "sent", {
     booleanValue: false,
@@ -1227,53 +1269,76 @@ async function sendDueAnnouncements(
       continue; // not due yet (or already past — left for the driver to notice)
     }
     processed++;
-
-    const ward = row.fields.ward as string;
-    const note = (row.fields.note as string) || "";
-    const when = collectionDateMs >= tomorrowStartMs ? "tomorrow" : "today";
-    const title = when === "tomorrow" ? "Collection Tomorrow" : "Collection Today";
-    const body = note
-      ? `Truck coming to ${ward} ${when}. ${note}`
-      : `Truck coming to ${ward} ${when}.`;
-
-    const residents = await firestoreQueryEquals(env, token, "users", "ward", {
-      stringValue: ward,
-    });
-    for (const resident of residents) {
-      await writeNotification(env, token, resident.id, title, body, "announcement", row.id);
-      const fcmToken = resident.fields.fcmToken as string | undefined;
-      if (fcmToken) {
-        await sendPushNotification(env, token, fcmToken, title, body);
-      }
-      notified++;
-    }
-
-    await firestoreWrite(env, token, `collectionAnnouncements/${row.id}`, { sent: true }, true);
+    notified += await sendAnnouncement(env, token, row.id, row.fields);
   }
 
   return { processed, notified };
 }
 
 /**
- * POST /admin/run-announcements  { idToken }
- * Admin-only. Runs sendDueAnnouncements() immediately instead of waiting
- * for the cron trigger — for testing and live demos.
+ * Sends one announcement right now instead of at the next scheduled run.
+ * Shared by the two endpoints below, which differ only in who may call
+ * them and for which announcements:
+ *
+ *   POST /send-announcement-update  { idToken, id }   — drivers
+ *     Only for an update to an announcement residents were already
+ *     notified about (`isUpdate`, which firestore.rules — not the client —
+ *     decides), since those residents are otherwise holding wrong
+ *     information until the retry cron. A driver can never push a first
+ *     announcement early; that waits for the fixed 6 PM send.
+ *
+ *   POST /admin/send-announcement  { idToken, id }    — admins
+ *     Any single un-sent announcement the admin picks from the app's
+ *     Scheduled Announcements screen — one ward at a time, deliberately,
+ *     rather than a "send everything" trigger.
+ *
+ * Both are refused after UPDATE_DEADLINE_HOUR on the evening before
+ * collection, and for any collection date other than tomorrow — the same
+ * limits the cron runs keep, so residents are only ever told the day
+ * before. If a driver's call never arrives (no network), the retry cron at
+ * that same hour still picks the doc up.
  */
-async function handleRunAnnouncements(req: Request, env: Env): Promise<Response> {
-  const body = (await req.json()) as { idToken?: string };
+async function handleSendAnnouncementNow(
+  req: Request,
+  env: Env,
+  caller: "driver" | "admin"
+): Promise<Response> {
+  const body = (await req.json()) as { idToken?: string; id?: string };
   if (typeof body.idToken !== "string" || !body.idToken) {
     throw new ApiError("Missing session token.", 401);
   }
   const callerUid = await verifyFirebaseIdToken(env, body.idToken);
+  const id = String(body.id ?? "").trim();
+  if (!id) throw new ApiError("Missing document id.", 400);
 
   const token = await getGoogleAccessToken(env);
   const callerDoc = await firestoreGet(env, token, `users/${callerUid}`);
-  if (!callerDoc || callerDoc.role !== "admin") {
+  if (!callerDoc || callerDoc.role !== caller) {
     throw new ApiError("You do not have permission to perform this action.", 403);
   }
 
-  const result = await sendDueAnnouncements(env, { today: true, tomorrow: true });
-  return json({ ok: true, ...result });
+  const doc = await firestoreGet(env, token, `collectionAnnouncements/${encodeURIComponent(id)}`);
+  if (!doc) throw new ApiError("Announcement not found.", 404);
+  if (doc.sent === true) return json({ ok: true, notified: 0 }); // idempotent
+  if (caller === "driver" && doc.isUpdate !== true) {
+    throw new ApiError("Only updates can be sent immediately.", 400);
+  }
+
+  const { startMs, endMs } = colomboDateBounds(1); // tomorrow
+  const collectionDateMs = doc.collectionDate as number | null;
+  if (!collectionDateMs || collectionDateMs < startMs || collectionDateMs >= endMs) {
+    throw new ApiError(
+      "Residents can only be notified the day before collection.",
+      409
+    );
+  }
+  const deadlineMs = startMs - (24 - UPDATE_DEADLINE_HOUR) * 60 * 60 * 1000;
+  if (Date.now() >= deadlineMs) {
+    throw new ApiError("It is too late to notify residents about this collection.", 409);
+  }
+
+  const notified = await sendAnnouncement(env, token, id, doc);
+  return json({ ok: true, notified });
 }
 
 // ---------------------------------------------------------------------------
@@ -1304,8 +1369,10 @@ export default {
           return await handleNotify(req, env);
         case "/bin-status":
           return await handleBinStatus(req, env);
-        case "/admin/run-announcements":
-          return await handleRunAnnouncements(req, env);
+        case "/send-announcement-update":
+          return await handleSendAnnouncementNow(req, env, "driver");
+        case "/admin/send-announcement":
+          return await handleSendAnnouncementNow(req, env, "admin");
         default:
           return errorJson("Not found.", 404);
       }
@@ -1316,12 +1383,11 @@ export default {
     }
   },
 
-  // Cron Triggers — see wrangler.toml [triggers]. The evening run is the
-  // fixed-time send for tomorrow's collections; the morning run only catches
-  // up anything for today that the evening run missed.
+  // Cron Triggers — see wrangler.toml [triggers]. Both runs do the same
+  // thing: the first is the fixed-time send for tomorrow's collections, the
+  // second (at UPDATE_DEADLINE_HOUR) retries anything the first one missed.
   async scheduled(event: ScheduledController, env: Env, _ctx: ExecutionContext): Promise<void> {
-    const isCatchUp = event.cron === CATCH_UP_CRON;
-    const result = await sendDueAnnouncements(env, { today: isCatchUp, tomorrow: !isCatchUp });
+    const result = await sendDueAnnouncements(env);
     console.log(
       `[scheduled] cron="${event.cron}" processed=${result.processed} notified=${result.notified}`
     );

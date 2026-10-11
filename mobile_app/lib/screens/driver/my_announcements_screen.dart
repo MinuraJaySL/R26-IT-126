@@ -110,8 +110,10 @@ class _AnnouncementCard extends StatelessWidget {
     final now = DateTime.now();
     final alreadyPastSendTime =
         now.isAfter(DateTime(sendAt.year, sendAt.month, sendAt.day, _cutoffHour));
-    final collectionDayOver =
-        now.isAfter(a.collectionDate.add(const Duration(days: 1)));
+    // The Worker's last run is at 8 PM the evening before, and nothing is
+    // ever sent after it — a few minutes' grace covers that run finishing.
+    final finalRunOver =
+        now.isAfter(DateTime(sendAt.year, sendAt.month, sendAt.day, 20, 10));
 
     final String statusLabel;
     final Color statusColor;
@@ -120,16 +122,16 @@ class _AnnouncementCard extends StatelessWidget {
       statusLabel = 'NOTIFIED';
       statusColor = Colors.green;
       statusIcon = Icons.check_circle_outline;
-    } else if (collectionDayOver) {
-      // Neither the evening send nor the next morning's catch-up run got to
-      // it before the collection date passed — it will never go out now.
+    } else if (finalRunOver) {
+      // Neither the 6 PM send nor the 8 PM retry got to it — residents are
+      // never notified later than that, so it will not go out now.
       statusLabel = 'NOT SENT';
       statusColor = Colors.grey;
       statusIcon = Icons.error_outline;
     } else if (alreadyPastSendTime) {
       // Send time has passed but `sent` isn't flipped yet — either the brief
-      // window right around 6 PM, or the evening run missed it and the
-      // 6 AM catch-up run will pick it up.
+      // window right around 6 PM, or that run missed it and the 8 PM retry
+      // will pick it up.
       statusLabel = 'SENDING';
       statusColor = Colors.orange;
       statusIcon = Icons.hourglass_top;
@@ -184,15 +186,19 @@ class _AnnouncementCard extends StatelessWidget {
             Text(a.ward, style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 15)),
             const SizedBox(height: 4),
             Text(
-              'Collection on ${_formatDate(a.collectionDate)} · '
-              'push at 6:00 PM on ${_formatDate(sendAt)}',
+              '${a.cancelled ? 'No collection' : 'Collection'} on '
+              '${_formatDate(a.collectionDate)} · '
+              '${a.isUpdate ? 'update to residents on' : 'push at 6:00 PM on'} '
+              '${_formatDate(sendAt)}',
               style: TextStyle(fontSize: 13, color: scheme.onSurfaceVariant),
             ),
             if (a.note.isNotEmpty) ...[
               const SizedBox(height: 6),
               Text(a.note, style: const TextStyle(fontSize: 13)),
             ],
-            if (!a.sent && !collectionDayOver)
+            // Not for an update: residents already hold the details it
+            // corrects, so withdrawing it would leave them misinformed.
+            if (!a.sent && !a.isUpdate && !finalRunOver)
               Align(
                 alignment: Alignment.centerRight,
                 child: TextButton.icon(

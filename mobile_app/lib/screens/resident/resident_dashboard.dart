@@ -3,7 +3,6 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 import '../../models/app_notification.dart';
-import '../../models/collection_announcement.dart';
 import '../../models/pickup_request.dart';
 import '../../providers/auth_provider.dart';
 import '../../services/firestore_service.dart';
@@ -169,46 +168,6 @@ class _ResidentDashboardState extends State<ResidentDashboard> {
               style: const TextStyle(color: Colors.grey),
             ),
             const SizedBox(height: 24),
-            if (auth.user!.ward.isNotEmpty)
-              StreamBuilder<List<CollectionAnnouncement>>(
-                stream: _fs.watchAnnouncementsForWard(auth.user!.ward),
-                builder: (context, snap) {
-                  final announcements = snap.data ?? [];
-                  if (announcements.isEmpty) return const SizedBox.shrink();
-                  final next = announcements.first;
-                  return Container(
-                    margin: const EdgeInsets.only(bottom: 16),
-                    padding: const EdgeInsets.all(16),
-                    decoration: BoxDecoration(
-                      color: Colors.teal.withValues(alpha: 0.1),
-                      borderRadius: BorderRadius.circular(16),
-                      border: Border.all(color: Colors.teal.withValues(alpha: 0.4)),
-                    ),
-                    child: Row(
-                      children: [
-                        const Icon(Icons.campaign_outlined, color: Colors.teal, size: 28),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                'Collection in ${next.ward} on '
-                                '${next.collectionDate.day}/${next.collectionDate.month}',
-                                style: const TextStyle(fontWeight: FontWeight.bold),
-                              ),
-                              if (next.note.isNotEmpty) ...[
-                                const SizedBox(height: 2),
-                                Text(next.note, style: const TextStyle(fontSize: 12.5)),
-                              ],
-                            ],
-                          ),
-                        ),
-                      ],
-                    ),
-                  );
-                },
-              ),
             _DashCard(
               icon: Icons.inbox_outlined,
               title: 'My Pickups',

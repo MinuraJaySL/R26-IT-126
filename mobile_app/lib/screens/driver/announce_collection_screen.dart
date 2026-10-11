@@ -7,6 +7,7 @@ import '../../config/colombo_wards.dart';
 import '../../models/collection_announcement.dart';
 import '../../providers/auth_provider.dart';
 import '../../services/firestore_service.dart';
+import '../../services/notification_service.dart';
 import '../../widgets/app_input_decoration.dart';
 
 class AnnounceCollectionScreen extends StatefulWidget {
@@ -23,6 +24,12 @@ class _AnnounceCollectionScreenState extends State<AnnounceCollectionScreen> {
   // for both the send time and the submission deadline keeps them in sync.
   static const _cutoffHour = 18;
 
+  // Replacing an existing announcement is allowed a little longer — a plan
+  // can change after the 6 PM send — but nothing reaches residents after
+  // this hour, or on the collection day itself. Matches the Worker's
+  // UPDATE_DEADLINE_HOUR and its retry cron.
+  static const _updateDeadlineHour = 20;
+
   final _formKey = GlobalKey<FormState>();
   final _noteCtrl = TextEditingController();
   final _fs = FirestoreService();
@@ -30,6 +37,8 @@ class _AnnounceCollectionScreenState extends State<AnnounceCollectionScreen> {
   String? _selectedWard;
   late DateTime _selectedDate;
   bool _busy = false;
+  // False = truck is coming; true = no collection that day.
+  bool _cancelled = false;
 
   @override
   void initState() {
@@ -48,6 +57,12 @@ class _AnnounceCollectionScreenState extends State<AnnounceCollectionScreen> {
   DateTime _cutoffFor(DateTime collectionDate) {
     final dayBefore = collectionDate.subtract(const Duration(days: 1));
     return DateTime(dayBefore.year, dayBefore.month, dayBefore.day, _cutoffHour);
+  }
+
+  DateTime _updateDeadlineFor(DateTime collectionDate) {
+    final dayBefore = collectionDate.subtract(const Duration(days: 1));
+    return DateTime(
+        dayBefore.year, dayBefore.month, dayBefore.day, _updateDeadlineHour);
   }
 
   Future<void> _pickDate() async {
@@ -84,50 +99,75 @@ class _AnnounceCollectionScreenState extends State<AnnounceCollectionScreen> {
       _showError('Please select a ward.');
       return;
     }
-
-    final cutoff = _cutoffFor(_selectedDate);
-    if (!DateTime.now().isBefore(cutoff)) {
-      _showError(
-        'Too late to announce collection for ${_formatDate(_selectedDate)}. '
-        'Announcements must be posted before ${_formatCutoff(cutoff)} the day '
-        'before collection, so residents get their notice in time. '
-        'Pick a later date instead.',
-      );
-      return;
-    }
+    final ward = _selectedWard!;
+    final date = _selectedDate;
+    final dayBefore = date.subtract(const Duration(days: 1));
+    final cutoff = _cutoffFor(date);
+    final deadline = _updateDeadlineFor(date);
 
     setState(() => _busy = true);
-    final driverId = context.read<AuthProvider>().user!.uid;
-    final announcement = CollectionAnnouncement(
-      id: CollectionAnnouncement.idFor(_selectedWard!, _selectedDate),
-      driverId: driverId,
-      ward: _selectedWard!,
-      collectionDate: _selectedDate,
-      note: _noteCtrl.text.trim(),
-      createdAt: DateTime.now(),
-    );
-    final duplicateMessage =
-        'Collection in $_selectedWard on ${_formatDate(_selectedDate)} has '
-        'already been announced. Residents will only be notified once.';
-
     try {
-      if (await _fs.announcementExists(_selectedWard!, _selectedDate)) {
-        if (mounted) _showError(duplicateMessage);
-        return;
-      }
-      await _fs.createCollectionAnnouncement(announcement);
+      final existing = await _fs.fetchAnnouncement(ward, date);
       if (!mounted) return;
+      final now = DateTime.now();
+
+      if (existing == null) {
+        if (!now.isBefore(cutoff)) {
+          _showError(
+            'Too late to announce collection for ${_formatDate(date)}. '
+            'Announcements must be posted before ${_formatCutoff(cutoff)} the day '
+            'before collection, so residents get their notice in time. '
+            'Pick a later date instead.',
+          );
+          return;
+        }
+      } else {
+        if (!now.isBefore(deadline)) {
+          _showError(
+            'Too late to change the announcement for ${_formatDate(date)}. '
+            'Updates must be posted before ${_formatCutoff(deadline)} the day '
+            'before collection — residents are not notified after that.',
+          );
+          return;
+        }
+        if (!await _confirmReplace(existing) || !mounted) return;
+      }
+
+      // Mirrors what firestore.rules requires: an update only if residents
+      // were already told something for this ward and date.
+      final isUpdate = existing != null && (existing.sent || existing.isUpdate);
+      final announcement = CollectionAnnouncement(
+        id: CollectionAnnouncement.idFor(ward, date),
+        driverId: context.read<AuthProvider>().user!.uid,
+        ward: ward,
+        collectionDate: date,
+        note: _noteCtrl.text.trim(),
+        createdAt: now,
+        cancelled: _cancelled,
+        isUpdate: isUpdate,
+      );
+      await _fs.saveCollectionAnnouncement(announcement);
+
+      // Residents already hold the old details, so an update goes out now
+      // rather than waiting for a scheduled run.
+      final sentNow =
+          isUpdate && await NotificationService().sendAnnouncementUpdate(announcement.id);
+      if (!mounted) return;
+
+      final String outcome;
+      if (sentNow) {
+        outcome = 'Residents in $ward have been notified of this update.';
+      } else {
+        final sendTime = (isUpdate || !now.isBefore(cutoff)) ? deadline : cutoff;
+        outcome = 'Residents in $ward will be notified at '
+            '${_formatCutoff(sendTime)} on ${_formatDate(dayBefore)}.';
+      }
       await showDialog<void>(
         context: context,
         builder: (dialogContext) => AlertDialog(
           icon: const Icon(Icons.check_circle_outline, color: Colors.green, size: 44),
-          title: const Text('Announcement Posted'),
-          content: Text(
-            'Residents in $_selectedWard will be notified at '
-            '${_formatCutoff(_cutoffFor(_selectedDate))} on '
-            '${_formatDate(_selectedDate.subtract(const Duration(days: 1)))}.',
-            textAlign: TextAlign.center,
-          ),
+          title: Text(existing == null ? 'Announcement Posted' : 'Announcement Updated'),
+          content: Text(outcome, textAlign: TextAlign.center),
           actions: [
             ElevatedButton(
               onPressed: () => Navigator.pop(dialogContext),
@@ -138,18 +178,47 @@ class _AnnounceCollectionScreenState extends State<AnnounceCollectionScreen> {
       );
       if (mounted) Navigator.of(context).pop();
     } on FirebaseException catch (e) {
-      // The pre-check above can lose a race with another driver posting the
-      // same ward+date — the rules then reject this write as an update of
-      // the doc that just appeared.
-      if (!mounted) return;
-      _showError(e.code == 'permission-denied'
-          ? duplicateMessage
-          : 'Could not post announcement: ${e.message ?? e.code}');
+      if (mounted) _showError('Could not post announcement: ${e.message ?? e.code}');
     } catch (e) {
       if (mounted) _showError('Could not post announcement: $e');
     } finally {
       if (mounted) setState(() => _busy = false);
     }
+  }
+
+  // One announcement per ward per date — posting again replaces it, so the
+  // driver is shown what's there first rather than overwriting it blind
+  // (it may be another driver's).
+  Future<bool> _confirmReplace(CollectionAnnouncement existing) async {
+    final alreadyTold = existing.sent || existing.isUpdate;
+    final what = existing.cancelled ? 'Not coming' : 'Coming';
+    final note = existing.note.isEmpty ? '' : ' — ${existing.note}';
+    final effect = alreadyTold
+        ? 'Residents were already notified, so they will be sent your '
+            'details as an update right away.'
+        : 'Residents have not been notified yet, so they will only '
+            'receive your details.';
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Replace Existing Announcement?'),
+        content: Text(
+          '${existing.ward} on ${_formatDate(existing.collectionDate)} is '
+          'already announced as "$what"$note.\n\n$effect',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(false),
+            child: const Text('Keep Existing'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.of(dialogContext).pop(true),
+            child: const Text('Replace'),
+          ),
+        ],
+      ),
+    );
+    return confirmed == true;
   }
 
   String _formatDate(DateTime d) => '${d.day}/${d.month}/${d.year}';
@@ -186,9 +255,12 @@ class _AnnounceCollectionScreenState extends State<AnnounceCollectionScreen> {
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               Text(
-                'Let residents in a ward know your truck is coming. '
-                'They\'ll see it in-app immediately, and get a notification '
-                'at ${_formatHour(_cutoffHour, 0)} the evening before.',
+                'Let residents in a ward know whether your truck is coming. '
+                'They\'ll get a notification at '
+                '${_formatHour(_cutoffHour, 0)} the evening before. '
+                'Posting again for the same ward and date replaces the '
+                'earlier announcement, up to '
+                '${_formatHour(_updateDeadlineHour, 0)} that evening.',
                 style: TextStyle(color: scheme.onSurfaceVariant),
               ),
               const SizedBox(height: 24),
@@ -248,6 +320,24 @@ class _AnnounceCollectionScreenState extends State<AnnounceCollectionScreen> {
                   ),
                   child: Text(_formatDate(_selectedDate)),
                 ),
+              ),
+              const SizedBox(height: 16),
+              SegmentedButton<bool>(
+                segments: const [
+                  ButtonSegment(
+                    value: false,
+                    label: Text('Coming'),
+                    icon: Icon(Icons.local_shipping_outlined),
+                  ),
+                  ButtonSegment(
+                    value: true,
+                    label: Text('Not coming'),
+                    icon: Icon(Icons.event_busy_outlined),
+                  ),
+                ],
+                selected: {_cancelled},
+                onSelectionChanged: (selection) =>
+                    setState(() => _cancelled = selection.first),
               ),
               const SizedBox(height: 16),
               TextFormField(

@@ -50,4 +50,30 @@ class NotificationService {
       debugPrint('notifyEvent($event, $id) failed: $e');
     }
   }
+
+  /// Asks the Worker to send an announcement *update* to residents right
+  /// now instead of at the next scheduled run (see cf-worker's
+  /// handleSendAnnouncementUpdate — it only agrees for an update to an
+  /// announcement residents were already notified about, and only before
+  /// the evening deadline). Returns whether it was sent; on false the
+  /// Worker's retry run at that deadline still picks it up, so the caller
+  /// only needs this to word its confirmation message.
+  Future<bool> sendAnnouncementUpdate(String id) async {
+    try {
+      final user = FirebaseAuth.instance.currentUser;
+      if (user == null) return false;
+      final idToken = await user.getIdToken();
+      final res = await http
+          .post(
+            Uri.parse('${VerificationApiConfig.baseUrl}/send-announcement-update'),
+            headers: const {'Content-Type': 'application/json'},
+            body: jsonEncode({'idToken': idToken, 'id': id}),
+          )
+          .timeout(const Duration(seconds: 30));
+      return res.statusCode >= 200 && res.statusCode < 300;
+    } catch (e) {
+      debugPrint('sendAnnouncementUpdate($id) failed: $e');
+      return false;
+    }
+  }
 }

@@ -323,26 +323,26 @@ class FirestoreService {
   }
 
   // Collection announcements — driver posts "truck coming to this ward on
-  // this date"; residents in that ward see it here immediately (in-app),
-  // and separately get a push at a fixed daily time via the Worker's
-  // scheduled handler (see cf-worker's `scheduled` export).
-  Future<void> createCollectionAnnouncement(CollectionAnnouncement a) {
+  // this date"; residents in that ward see nothing until the Worker sends
+  // it (push + notifications inbox) — at a fixed daily time via its
+  // scheduled handler, or when an admin triggers the send manually.
+  //
+  // One doc per ward per date (see CollectionAnnouncement.idFor), so this
+  // is also how an announcement is replaced with newer details: writing
+  // again overwrites the same doc and resets it to un-sent.
+  Future<void> saveCollectionAnnouncement(CollectionAnnouncement a) {
     return _db.collection('collectionAnnouncements').doc(a.id).set(a.toMap());
   }
 
-  // True if any driver has already announced collection for this ward on
-  // this date — a second one would push the same residents twice. Single
-  // equality filter + client-side date match, same no-composite-index
-  // choice as watchAnnouncementsForWard below.
-  Future<bool> announcementExists(String ward, DateTime collectionDate) async {
-    final snap = await _db
+  // The announcement already posted for this ward and date, if any —
+  // looked up before posting so the driver is told they're replacing one.
+  Future<CollectionAnnouncement?> fetchAnnouncement(
+      String ward, DateTime collectionDate) async {
+    final doc = await _db
         .collection('collectionAnnouncements')
-        .where('ward', isEqualTo: ward)
+        .doc(CollectionAnnouncement.idFor(ward, collectionDate))
         .get();
-    return snap.docs.map(CollectionAnnouncement.fromFirestore).any((a) =>
-        a.collectionDate.year == collectionDate.year &&
-        a.collectionDate.month == collectionDate.month &&
-        a.collectionDate.day == collectionDate.day);
+    return doc.exists ? CollectionAnnouncement.fromFirestore(doc) : null;
   }
 
   // Only succeeds for the driver's own announcement while it's still
@@ -351,22 +351,26 @@ class FirestoreService {
     return _db.collection('collectionAnnouncements').doc(id).delete();
   }
 
-  // Announcements for one ward, today's date or later — sorted soonest
-  // first. Filtering to >= today happens client-side (not a where clause)
-  // to avoid needing a composite index for ward + collectionDate.
-  Stream<List<CollectionAnnouncement>> watchAnnouncementsForWard(String ward) {
-    final startOfToday = DateTime.now();
-    final todayDateOnly = DateTime(startOfToday.year, startOfToday.month, startOfToday.day);
+  // Every announcement still waiting to go out, for tomorrow or later,
+  // soonest collection first — the admin's Scheduled Announcements screen.
+  // Ones whose collection date is today or earlier are dropped: they can no
+  // longer be sent (residents are only ever notified the day before).
+  Stream<List<CollectionAnnouncement>> watchPendingAnnouncements() {
     return _db
         .collection('collectionAnnouncements')
-        .where('ward', isEqualTo: ward)
+        .where('sent', isEqualTo: false)
         .snapshots()
         .map((snap) {
+      final now = DateTime.now();
+      final today = DateTime(now.year, now.month, now.day);
       final list = snap.docs
           .map(CollectionAnnouncement.fromFirestore)
-          .where((a) => !a.collectionDate.isBefore(todayDateOnly))
+          .where((a) => a.collectionDate.isAfter(today))
           .toList();
-      list.sort((a, b) => a.collectionDate.compareTo(b.collectionDate));
+      list.sort((a, b) {
+        final byDate = a.collectionDate.compareTo(b.collectionDate);
+        return byDate != 0 ? byDate : a.ward.compareTo(b.ward);
+      });
       return list;
     });
   }

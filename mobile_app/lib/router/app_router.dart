@@ -31,6 +31,7 @@ import '../screens/admin/admin_dashboard_screen.dart';
 import '../screens/admin/user_management_screen.dart';
 import '../screens/admin/add_driver_screen.dart';
 import '../screens/admin/admin_recovery_requests_screen.dart';
+import '../screens/admin/admin_scheduled_announcements_screen.dart';
 import '../screens/profile/profile_screen.dart';
 
 GoRouter buildRouter() {
@@ -183,6 +184,10 @@ GoRouter buildRouter() {
       GoRoute(
         path: '/admin/recovery-requests',
         builder: (ctx, _) => const AdminRecoveryRequestsScreen(),
+      ),
+      GoRoute(
+        path: '/admin/announcements',
+        builder: (ctx, _) => const AdminScheduledAnnouncementsScreen(),
       ),
       GoRoute(path: '/profile', builder: (ctx, _) => const ProfileScreen()),
     ],
