@@ -3,12 +3,12 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
-import '../../config/colombo_wards.dart';
 import '../../models/collection_announcement.dart';
 import '../../providers/auth_provider.dart';
 import '../../services/firestore_service.dart';
 import '../../services/notification_service.dart';
 import '../../widgets/app_input_decoration.dart';
+import '../../widgets/ward_picker.dart';
 
 class AnnounceCollectionScreen extends StatefulWidget {
   const AnnounceCollectionScreen({super.key});
@@ -264,50 +264,13 @@ class _AnnounceCollectionScreenState extends State<AnnounceCollectionScreen> {
                 style: TextStyle(color: scheme.onSurfaceVariant),
               ),
               const SizedBox(height: 24),
-              Autocomplete<String>(
-                optionsBuilder: (textValue) {
-                  if (textValue.text.isEmpty) return colomboWards;
-                  final query = textValue.text.toLowerCase();
-                  return colomboWards.where((w) => w.toLowerCase().contains(query));
-                },
-                onSelected: (selection) => setState(() => _selectedWard = selection),
-                fieldViewBuilder: (context, controller, focusNode, onSubmit) {
-                  return TextFormField(
-                    controller: controller,
-                    focusNode: focusNode,
-                    decoration: appFieldDecoration(
-                      scheme,
-                      label: 'Ward',
-                      icon: Icons.location_city_outlined,
-                    ),
-                    onChanged: (_) => _selectedWard = null,
-                  );
-                },
-                optionsViewBuilder: (context, onSelected, options) {
-                  return Align(
-                    alignment: Alignment.topLeft,
-                    child: Material(
-                      elevation: 4,
-                      borderRadius: BorderRadius.circular(12),
-                      child: ConstrainedBox(
-                        constraints: const BoxConstraints(maxHeight: 240, maxWidth: 400),
-                        child: ListView.builder(
-                          padding: EdgeInsets.zero,
-                          shrinkWrap: true,
-                          itemCount: options.length,
-                          itemBuilder: (context, i) {
-                            final option = options.elementAt(i);
-                            return ListTile(
-                              dense: true,
-                              title: Text(option),
-                              onTap: () => onSelected(option),
-                            );
-                          },
-                        ),
-                      ),
-                    ),
-                  );
-                },
+              WardPicker(
+                decoration: appFieldDecoration(
+                  scheme,
+                  label: 'Ward',
+                  icon: Icons.location_city_outlined,
+                ),
+                onChanged: (ward) => setState(() => _selectedWard = ward),
               ),
               const SizedBox(height: 16),
               InkWell(

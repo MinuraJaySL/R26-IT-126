@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
-import '../../config/colombo_wards.dart';
 import '../../models/app_user.dart';
 import '../../providers/auth_provider.dart';
 import '../../widgets/app_input_decoration.dart';
+import '../../widgets/ward_picker.dart';
 import '../../widgets/confirm_logout_dialog.dart';
 
 final _phoneRegex = RegExp(r'^\+?[0-9]{7,15}$');
@@ -189,53 +189,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       },
                     ),
                     const SizedBox(height: 16),
-                    Autocomplete<String>(
-                      initialValue: TextEditingValue(text: _selectedWard ?? ''),
-                      optionsBuilder: (textValue) {
-                        if (textValue.text.isEmpty) return colomboWards;
-                        final query = textValue.text.toLowerCase();
-                        return colomboWards
-                            .where((w) => w.toLowerCase().contains(query));
-                      },
-                      onSelected: (selection) =>
-                          setState(() => _selectedWard = selection),
-                      fieldViewBuilder: (context, controller, focusNode, onSubmit) {
-                        return TextFormField(
-                          controller: controller,
-                          focusNode: focusNode,
-                          decoration: appFieldDecoration(
-                            scheme,
-                            label: 'Ward (Colombo MC)',
-                            icon: Icons.location_city_outlined,
-                          ),
-                          onChanged: (_) => _selectedWard = null,
-                        );
-                      },
-                      optionsViewBuilder: (context, onSelected, options) {
-                        return Align(
-                          alignment: Alignment.topLeft,
-                          child: Material(
-                            elevation: 4,
-                            borderRadius: BorderRadius.circular(12),
-                            child: ConstrainedBox(
-                              constraints: const BoxConstraints(maxHeight: 240, maxWidth: 400),
-                              child: ListView.builder(
-                                padding: EdgeInsets.zero,
-                                shrinkWrap: true,
-                                itemCount: options.length,
-                                itemBuilder: (context, i) {
-                                  final option = options.elementAt(i);
-                                  return ListTile(
-                                    dense: true,
-                                    title: Text(option),
-                                    onTap: () => onSelected(option),
-                                  );
-                                },
-                              ),
-                            ),
-                          ),
-                        );
-                      },
+                    WardPicker(
+                      initialWard: _selectedWard,
+                      decoration: appFieldDecoration(
+                        scheme,
+                        label: 'Ward (Colombo MC)',
+                        icon: Icons.location_city_outlined,
+                      ),
+                      onChanged: (ward) => setState(() => _selectedWard = ward),
                     ),
                     const SizedBox(height: 20),
                     SizedBox(

@@ -17,8 +17,6 @@ class StyledTextField extends StatelessWidget {
     this.maxLength,
     this.textAlign = TextAlign.start,
     this.style,
-    this.focusNode,
-    this.onChanged,
   });
 
   final TextEditingController controller;
@@ -31,51 +29,63 @@ class StyledTextField extends StatelessWidget {
   final int? maxLength;
   final TextAlign textAlign;
   final TextStyle? style;
-  final FocusNode? focusNode;
-  final ValueChanged<String>? onChanged;
 
   @override
   Widget build(BuildContext context) {
     return TextField(
       controller: controller,
-      focusNode: focusNode,
-      onChanged: onChanged,
       obscureText: obscureText,
       keyboardType: keyboardType,
       autofocus: autofocus,
       maxLength: maxLength,
       textAlign: textAlign,
       style: style,
-      decoration: InputDecoration(
-        labelText: label,
-        prefixIcon: Icon(icon, color: AppColors.primaryDark),
+      decoration: styledFieldDecoration(
+        label: label,
+        icon: icon,
         suffixIcon: suffixIcon,
-        filled: true,
-        fillColor: AppColors.backgroundWhite,
-        counterText: maxLength != null ? '' : null,
-        labelStyle: const TextStyle(
-          color: AppColors.textSubtitle,
-          fontSize: 14,
-          fontWeight: FontWeight.w500,
-        ),
-        border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(16),
-          borderSide: const BorderSide(color: Color(0xFFE0E0E0)),
-        ),
-        enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(16),
-          borderSide: const BorderSide(color: Color(0xFFE0E0E0)),
-        ),
-        focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(16),
-          borderSide: const BorderSide(color: AppColors.primaryDark, width: 1.8),
-        ),
-        errorBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(16),
-          borderSide: const BorderSide(color: AppColors.error),
-        ),
-        contentPadding: const EdgeInsets.symmetric(vertical: 16, horizontal: 16),
+        hideCounter: maxLength != null,
       ),
     );
   }
+}
+
+/// The decoration [StyledTextField] uses, for widgets that need the same
+/// look but aren't a plain [TextField] (e.g. the ward dropdown).
+InputDecoration styledFieldDecoration({
+  required String label,
+  required IconData icon,
+  Widget? suffixIcon,
+  bool hideCounter = false,
+}) {
+  return InputDecoration(
+    labelText: label,
+    prefixIcon: Icon(icon, color: AppColors.primaryDark),
+    suffixIcon: suffixIcon,
+    filled: true,
+    fillColor: AppColors.backgroundWhite,
+    counterText: hideCounter ? '' : null,
+    labelStyle: const TextStyle(
+      color: AppColors.textSubtitle,
+      fontSize: 14,
+      fontWeight: FontWeight.w500,
+    ),
+    border: OutlineInputBorder(
+      borderRadius: BorderRadius.circular(16),
+      borderSide: const BorderSide(color: Color(0xFFE0E0E0)),
+    ),
+    enabledBorder: OutlineInputBorder(
+      borderRadius: BorderRadius.circular(16),
+      borderSide: const BorderSide(color: Color(0xFFE0E0E0)),
+    ),
+    focusedBorder: OutlineInputBorder(
+      borderRadius: BorderRadius.circular(16),
+      borderSide: const BorderSide(color: AppColors.primaryDark, width: 1.8),
+    ),
+    errorBorder: OutlineInputBorder(
+      borderRadius: BorderRadius.circular(16),
+      borderSide: const BorderSide(color: AppColors.error),
+    ),
+    contentPadding: const EdgeInsets.symmetric(vertical: 16, horizontal: 16),
+  );
 }
