@@ -4,6 +4,7 @@ import '../../models/recovery_request.dart';
 import '../../providers/auth_provider.dart';
 import '../../services/firestore_service.dart';
 import '../../widgets/app_feedback.dart';
+import '../../utils/friendly_error.dart';
 
 class AdminRecoveryRequestsScreen extends StatelessWidget {
   const AdminRecoveryRequestsScreen({super.key});
@@ -136,7 +137,7 @@ class _OpenRequestsTab extends StatelessWidget {
       }
     } catch (e) {
       if (context.mounted) {
-        showErrorDialog(context, '$e');
+        showErrorDialog(context, friendlyError(e));
       }
     }
   }
@@ -152,7 +153,8 @@ class _OpenRequestsTab extends StatelessWidget {
         }
         if (snap.hasError) {
           return Center(
-            child: Text('Error: ${snap.error}', style: const TextStyle(color: Colors.red)),
+            child: Text(
+                friendlyError(snap.error, fallback: 'Could not load this list. Please try again.'), style: const TextStyle(color: Colors.red)),
           );
         }
         final requests = snap.data ?? [];
@@ -257,7 +259,8 @@ class _ResolvedRequestsTab extends StatelessWidget {
         }
         if (snap.hasError) {
           return Center(
-            child: Text('Error: ${snap.error}', style: const TextStyle(color: Colors.red)),
+            child: Text(
+                friendlyError(snap.error, fallback: 'Could not load this list. Please try again.'), style: const TextStyle(color: Colors.red)),
           );
         }
         final requests = snap.data ?? [];

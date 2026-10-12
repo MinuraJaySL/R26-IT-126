@@ -3,6 +3,7 @@ import 'package:go_router/go_router.dart';
 import '../../models/bin_report.dart';
 import '../../services/firestore_service.dart';
 import 'resolve_report_dialog.dart';
+import '../../utils/friendly_error.dart';
 
 class DriverBinReportsScreen extends StatelessWidget {
   const DriverBinReportsScreen({super.key});
@@ -49,7 +50,8 @@ class _OpenReportsTab extends StatelessWidget {
         }
         if (snap.hasError) {
           return Center(
-            child: Text('Error: ${snap.error}', style: const TextStyle(color: Colors.red)),
+            child: Text(
+                friendlyError(snap.error, fallback: 'Could not load this list. Please try again.'), style: const TextStyle(color: Colors.red)),
           );
         }
         final reports = snap.data ?? [];
@@ -175,7 +177,8 @@ class _ResolvedReportsTab extends StatelessWidget {
         }
         if (snap.hasError) {
           return Center(
-            child: Text('Error: ${snap.error}', style: const TextStyle(color: Colors.red)),
+            child: Text(
+                friendlyError(snap.error, fallback: 'Could not load this list. Please try again.'), style: const TextStyle(color: Colors.red)),
           );
         }
         final reports = snap.data ?? [];

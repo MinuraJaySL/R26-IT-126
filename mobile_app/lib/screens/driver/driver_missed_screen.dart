@@ -3,6 +3,7 @@ import 'package:go_router/go_router.dart';
 import '../../models/pickup_request.dart';
 import '../../services/firestore_service.dart';
 import '../../widgets/app_feedback.dart';
+import '../../utils/friendly_error.dart';
 
 class DriverMissedScreen extends StatelessWidget {
   const DriverMissedScreen({super.key});
@@ -24,7 +25,8 @@ class DriverMissedScreen extends StatelessWidget {
           }
           if (snap.hasError) {
             return Center(
-              child: Text('Error: ${snap.error}',
+              child: Text(
+                friendlyError(snap.error, fallback: 'Could not load this list. Please try again.'),
                   style: const TextStyle(color: Colors.red)),
             );
           }
@@ -115,7 +117,7 @@ class _MissedCardState extends State<_MissedCard> {
       }
     } catch (e) {
       if (mounted) {
-        showErrorDialog(context, '$e');
+        showErrorDialog(context, friendlyError(e));
       }
     } finally {
       if (mounted) setState(() => _busy = false);

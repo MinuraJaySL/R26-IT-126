@@ -1,4 +1,3 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
@@ -9,6 +8,7 @@ import '../../services/firestore_service.dart';
 import '../../services/notification_service.dart';
 import '../../widgets/app_input_decoration.dart';
 import '../../widgets/ward_picker.dart';
+import '../../utils/friendly_error.dart';
 
 class AnnounceCollectionScreen extends StatefulWidget {
   const AnnounceCollectionScreen({super.key});
@@ -177,10 +177,13 @@ class _AnnounceCollectionScreenState extends State<AnnounceCollectionScreen> {
         ),
       );
       if (mounted) Navigator.of(context).pop();
-    } on FirebaseException catch (e) {
-      if (mounted) _showError('Could not post announcement: ${e.message ?? e.code}');
     } catch (e) {
-      if (mounted) _showError('Could not post announcement: $e');
+      if (mounted) {
+        _showError(friendlyError(
+          e,
+          fallback: 'Could not post the announcement. Please try again.',
+        ));
+      }
     } finally {
       if (mounted) setState(() => _busy = false);
     }

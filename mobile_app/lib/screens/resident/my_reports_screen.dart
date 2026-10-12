@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import '../../models/bin_report.dart';
 import '../../providers/auth_provider.dart';
 import '../../services/firestore_service.dart';
+import '../../utils/friendly_error.dart';
 
 class MyReportsScreen extends StatelessWidget {
   const MyReportsScreen({super.key});
@@ -35,7 +36,8 @@ class MyReportsScreen extends StatelessWidget {
           }
           if (snap.hasError) {
             return Center(
-              child: Text('Error loading reports: ${snap.error}',
+              child: Text(
+                friendlyError(snap.error, fallback: 'Could not load this list. Please try again.'),
                   style: const TextStyle(color: Colors.red)),
             );
           }

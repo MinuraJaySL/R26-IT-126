@@ -7,6 +7,7 @@ import '../../providers/auth_provider.dart';
 import '../../services/firestore_service.dart';
 import '../../services/notification_service.dart';
 import '../../widgets/app_feedback.dart';
+import '../../utils/friendly_error.dart';
 
 class MyPickupsScreen extends StatefulWidget {
   const MyPickupsScreen({super.key});
@@ -65,7 +66,8 @@ class _MyPickupsScreenState extends State<MyPickupsScreen> {
           }
           if (snap.hasError) {
             return Center(
-              child: Text('Error loading requests: ${snap.error}',
+              child: Text(
+                friendlyError(snap.error, fallback: 'Could not load this list. Please try again.'),
                   style: const TextStyle(color: Colors.red)),
             );
           }

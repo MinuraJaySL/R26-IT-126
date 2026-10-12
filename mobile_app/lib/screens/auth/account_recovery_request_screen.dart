@@ -9,6 +9,7 @@ import '../../theme/app_colors.dart';
 import '../../widgets/gradient_background.dart';
 import '../../widgets/gradient_button.dart';
 import '../../widgets/app_feedback.dart';
+import '../../utils/friendly_error.dart';
 
 const _defaultMessage =
     'I believe my account was disabled in error. Please review and '
@@ -53,7 +54,7 @@ class _AccountRecoveryRequestScreenState
       if (mounted) setState(() => _sent = true);
     } catch (e) {
       if (mounted) {
-        showErrorDialog(context, '$e', title: 'Could Not Send Request');
+        showErrorDialog(context, friendlyError(e), title: 'Could Not Send Request');
       }
     } finally {
       if (mounted) setState(() => _busy = false);

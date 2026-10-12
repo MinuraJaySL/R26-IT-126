@@ -6,6 +6,7 @@ import '../../models/pickup_request.dart';
 import '../../providers/auth_provider.dart';
 import '../../services/firestore_service.dart';
 import '../../widgets/app_feedback.dart';
+import '../../utils/friendly_error.dart';
 
 class DriverRequestsScreen extends StatefulWidget {
   const DriverRequestsScreen({super.key});
@@ -50,7 +51,7 @@ class _DriverRequestsScreenState extends State<DriverRequestsScreen> {
       }
     } catch (e) {
       if (mounted) {
-        showErrorDialog(context, '$e');
+        showErrorDialog(context, friendlyError(e));
       }
     }
   }
@@ -86,7 +87,8 @@ class _DriverRequestsScreenState extends State<DriverRequestsScreen> {
           }
           if (snap.hasError) {
             return Center(
-              child: Text('Error: ${snap.error}',
+              child: Text(
+                friendlyError(snap.error, fallback: 'Could not load this list. Please try again.'),
                   style: const TextStyle(color: Colors.red)),
             );
           }

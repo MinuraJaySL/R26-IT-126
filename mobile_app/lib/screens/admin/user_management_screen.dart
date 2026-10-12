@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../services/admin_service.dart';
 import '../../widgets/app_feedback.dart';
+import '../../utils/friendly_error.dart';
 
 class UserManagementScreen extends StatefulWidget {
   const UserManagementScreen({super.key});
@@ -81,7 +82,8 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
                   return const Center(child: CircularProgressIndicator());
                 }
                 if (snapshot.hasError) {
-                  return Center(child: Text('Failed to load users: ${snapshot.error}'));
+                  return Center(child: Text(
+                friendlyError(snapshot.error, fallback: 'Could not load this list. Please try again.')));
                 }
                 final users = (snapshot.data ?? [])
                     .where((u) => _filter == 'all' || u.role == _filter)
@@ -183,7 +185,7 @@ class _UserTile extends StatelessWidget {
       onEdited();
     } catch (e) {
       if (context.mounted) {
-        showErrorDialog(context, '$e');
+        showErrorDialog(context, friendlyError(e));
       }
     }
   }
@@ -345,7 +347,7 @@ class _EditDriverDialogState extends State<_EditDriverDialog> {
       }
     } catch (e) {
       if (mounted) {
-        showErrorDialog(context, '$e');
+        showErrorDialog(context, friendlyError(e));
       }
     } finally {
       if (mounted) setState(() => _busy = false);

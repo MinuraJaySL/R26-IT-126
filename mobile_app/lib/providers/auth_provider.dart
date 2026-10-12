@@ -5,6 +5,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import '../models/app_user.dart';
 import '../services/auth_service.dart';
 import '../services/notification_service.dart';
+import '../utils/friendly_error.dart';
 
 class AuthProvider extends ChangeNotifier {
   final AuthService _authService = AuthService();
@@ -49,8 +50,8 @@ class AuthProvider extends ChangeNotifier {
       _saveFcmToken(); // fire-and-forget — FCM must not block auth
       notifyListeners();
       return true;
-    } on Exception catch (e) {
-      _error = e.toString().replaceAll('Exception: ', '');
+    } catch (e) {
+      _error = friendlyError(e, fallback: 'Could not log in. Please try again.');
       notifyListeners();
       return false;
     }

@@ -4,6 +4,7 @@ import '../../models/pickup_request.dart';
 import '../../services/firestore_service.dart';
 import 'navigate_to_point_screen.dart';
 import '../../widgets/app_feedback.dart';
+import '../../utils/friendly_error.dart';
 
 class MissedNavigationScreen extends StatelessWidget {
   final PickupRequest request;
@@ -23,7 +24,7 @@ class MissedNavigationScreen extends StatelessWidget {
       return true;
     } catch (e) {
       if (context.mounted) {
-        showErrorDialog(context, '$e');
+        showErrorDialog(context, friendlyError(e));
       }
       return false;
     }

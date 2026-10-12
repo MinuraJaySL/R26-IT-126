@@ -4,6 +4,7 @@ import '../../models/bin_report.dart';
 import '../../providers/auth_provider.dart';
 import '../../services/firestore_service.dart';
 import '../../widgets/app_feedback.dart';
+import '../../utils/friendly_error.dart';
 
 const _quickReasons = ['Collected', 'Already Clear', 'False Alarm'];
 
@@ -87,7 +88,7 @@ Future<bool> showResolveReportDialog(BuildContext context, BinReport report) asy
     return true;
   } catch (e) {
     if (context.mounted) {
-      showErrorDialog(context, '$e');
+      showErrorDialog(context, friendlyError(e));
     }
     return false;
   }
