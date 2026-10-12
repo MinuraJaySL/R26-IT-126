@@ -114,5 +114,16 @@ class AuthService {
     return _auth.sendPasswordResetEmail(email: email);
   }
 
+  /// Confirms [currentPassword] before setting the new one — Firebase only
+  /// accepts a password change from a freshly-authenticated session, and a
+  /// user kept signed in across app restarts usually isn't one.
+  Future<void> changePassword(String currentPassword, String newPassword) async {
+    final user = _auth.currentUser!;
+    await user.reauthenticateWithCredential(
+      EmailAuthProvider.credential(email: user.email!, password: currentPassword),
+    );
+    await user.updatePassword(newPassword);
+  }
+
   Future<void> signOut() => _auth.signOut();
 }

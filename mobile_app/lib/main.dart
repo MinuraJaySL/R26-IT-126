@@ -12,6 +12,7 @@ import 'providers/auth_provider.dart';
 import 'router/app_router.dart';
 import 'theme/app_colors.dart';
 import 'widgets/app_feedback.dart';
+import 'widgets/gradient_background.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -83,17 +84,12 @@ class _WasteAppState extends State<WasteApp> {
     return matches.isEmpty ? '' : matches.last.matchedLocation;
   }
 
-  bool get _onAuthScreen =>
-      _currentRoute == '/login' || _currentRoute == '/register';
-
   // Android only puts a push in the notification bar while the app is in
   // the background — one that arrives with the app open would otherwise
   // show nothing, so it's surfaced here instead.
   void _showInApp(RemoteMessage message) {
     final user = _auth.user;
-    // A session can be restored while the login screen is still showing;
-    // that account's notifications don't belong on it.
-    if (user == null || _onAuthScreen) return;
+    if (user == null) return;
     final notification = message.notification;
     final text = [notification?.title, notification?.body]
         .where((part) => part != null && part.isNotEmpty)
@@ -116,15 +112,14 @@ class _WasteAppState extends State<WasteApp> {
   // A tapped push takes a resident to their inbox, where the message is.
   void _openInbox() {
     if (_auth.user?.role != UserRole.resident || _currentRoute == _inbox) return;
-    if (!_onAuthScreen) {
+    if (_currentRoute.isNotEmpty) {
       _router.push(_inbox);
       return;
     }
-    // Still on the login screen with a restored session (the app was just
-    // started by the tap): put the dashboard underneath first, so Back from
-    // the inbox has somewhere to go. go() lands asynchronously, so wait for
-    // the router to report it — and if a gate redirected elsewhere
-    // (disabled account, incomplete profile), leave the user there.
+    // No screen yet: the tap is what started the app, and the router is
+    // still behind the splash. Wait for its first screen and open the inbox
+    // on top of the dashboard — unless a gate sent the user somewhere else
+    // (disabled account, incomplete profile), in which case leave them there.
     final delegate = _router.routerDelegate;
     void onNavigated() {
       delegate.removeListener(onNavigated);
@@ -132,7 +127,6 @@ class _WasteAppState extends State<WasteApp> {
     }
 
     delegate.addListener(onNavigated);
-    _router.go(_home);
   }
 
   @override
@@ -143,6 +137,11 @@ class _WasteAppState extends State<WasteApp> {
         title: 'GreenSweep',
         debugShowCheckedModeBanner: false,
         scaffoldMessengerKey: _messengerKey,
+        // Keeps the router off-screen until the saved session has been
+        // checked, so its first redirect already knows who is signed in and
+        // the login screen never flashes up for a returning user.
+        builder: (context, child) =>
+            context.watch<AuthProvider>().loading ? const _Splash() : child!,
         theme: ThemeData(
           useMaterial3: true,
           colorScheme: ColorScheme.fromSeed(seedColor: AppColors.primaryDark),
@@ -181,6 +180,19 @@ class _WasteAppState extends State<WasteApp> {
           ),
         ),
         routerConfig: _router,
+      ),
+    );
+  }
+}
+
+class _Splash extends StatelessWidget {
+  const _Splash();
+
+  @override
+  Widget build(BuildContext context) {
+    return const Scaffold(
+      body: GradientBackground(
+        child: Center(child: CircularProgressIndicator(color: Colors.white)),
       ),
     );
   }

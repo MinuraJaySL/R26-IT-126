@@ -232,6 +232,20 @@ class _ProfileScreenState extends State<ProfileScreen> {
             SizedBox(
               height: 50,
               child: OutlinedButton.icon(
+                onPressed: () => context.push('/change-password'),
+                icon: const Icon(Icons.lock_outline),
+                label: const Text('Change Password'),
+                style: OutlinedButton.styleFrom(
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(height: 12),
+            SizedBox(
+              height: 50,
+              child: OutlinedButton.icon(
                 onPressed: _signOut,
                 icon: Icon(Icons.logout, color: scheme.error),
                 label: Text('Log Out', style: TextStyle(color: scheme.error)),

@@ -14,6 +14,10 @@ class AppUser {
   // Set by an admin's resolveRecoveryRequest call only when they re-enable
   // this account — shown once via AccountReenabledScreen, then cleared.
   final String? pendingRecoveryNotice;
+  // Set by the Worker when an admin creates a driver account, whose first
+  // password is a temporary one sent by email — the router holds the driver
+  // on ChangePasswordScreen until they've replaced it.
+  final bool mustChangePassword;
 
   AppUser({
     required this.uid,
@@ -25,6 +29,7 @@ class AppUser {
     this.disabled = false,
     this.ward = '',
     this.pendingRecoveryNotice,
+    this.mustChangePassword = false,
   });
 
   // Residents self-register with just email/password (see the OTP signup
@@ -49,6 +54,7 @@ class AppUser {
       disabled: data['disabled'] ?? false,
       ward: data['ward'] ?? '',
       pendingRecoveryNotice: data['pendingRecoveryNotice'],
+      mustChangePassword: data['mustChangePassword'] ?? false,
     );
   }
 
@@ -61,6 +67,7 @@ class AppUser {
     String? phone,
     String? ward,
     bool clearRecoveryNotice = false,
+    bool? mustChangePassword,
   }) {
     return AppUser(
       uid: uid,
@@ -72,6 +79,7 @@ class AppUser {
       disabled: disabled,
       ward: ward ?? this.ward,
       pendingRecoveryNotice: clearRecoveryNotice ? null : pendingRecoveryNotice,
+      mustChangePassword: mustChangePassword ?? this.mustChangePassword,
     );
   }
 }

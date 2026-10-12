@@ -33,6 +33,7 @@ import '../screens/admin/add_driver_screen.dart';
 import '../screens/admin/admin_recovery_requests_screen.dart';
 import '../screens/admin/admin_scheduled_announcements_screen.dart';
 import '../screens/profile/profile_screen.dart';
+import '../screens/profile/change_password_screen.dart';
 
 GoRouter buildRouter() {
   return GoRouter(
@@ -62,6 +63,13 @@ GoRouter buildRouter() {
       if (loggedIn && auth.user!.pendingRecoveryNotice != null) {
         final onNoticeScreen = state.matchedLocation == '/account-reenabled';
         return onNoticeScreen ? null : '/account-reenabled';
+      }
+
+      // A driver still on the temporary password their admin emailed them
+      // has to replace it before reaching anything else — same gating trick.
+      if (loggedIn && auth.user!.mustChangePassword) {
+        final onChangePassword = state.matchedLocation == '/change-password';
+        return onChangePassword ? null : '/change-password';
       }
 
       if (loggedIn && onAuth) {
@@ -190,6 +198,10 @@ GoRouter buildRouter() {
         builder: (ctx, _) => const AdminScheduledAnnouncementsScreen(),
       ),
       GoRoute(path: '/profile', builder: (ctx, _) => const ProfileScreen()),
+      GoRoute(
+        path: '/change-password',
+        builder: (ctx, _) => const ChangePasswordScreen(),
+      ),
     ],
   );
 }

@@ -982,6 +982,9 @@ async function handleCreateDriver(req: Request, env: Env): Promise<Response> {
       phone: driverPhone,
       vehicleNumber,
       role: "driver",
+      // Holds the driver on the app's ChangePasswordScreen at first sign-in
+      // until they replace the temporary password emailed below.
+      mustChangePassword: true,
       createdBy: callerUid,
       createdAt: new Date(),
     },

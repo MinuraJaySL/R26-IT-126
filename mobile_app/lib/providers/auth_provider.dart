@@ -20,10 +20,20 @@ class AuthProvider extends ChangeNotifier {
   String? get error => _error;
   bool get isLoggedIn => _user != null;
 
+  // Restores the session Firebase kept from the last sign-in, so the app
+  // opens on the user's dashboard rather than the login screen (main.dart
+  // shows a splash until this finishes; the router does the rest).
   Future<void> initialize() async {
-    _user = await _authService.getCurrentUser();
-    _loading = false;
-    notifyListeners();
+    try {
+      _user = await _authService.getCurrentUser();
+      if (_user != null) _saveFcmToken(); // fire-and-forget, as on sign-in
+    } catch (_) {
+      // Couldn't load the profile (e.g. first start with no connection) —
+      // fall through to the login screen rather than hang on the splash.
+    } finally {
+      _loading = false;
+      notifyListeners();
+    }
   }
 
   Future<bool> signIn(String email, String password) async {
@@ -137,6 +147,46 @@ class AuthProvider extends ChangeNotifier {
     } catch (_) {
       return true;
     }
+  }
+
+  /// Changes the signed-in user's password. Also lifts the first-login
+  /// gate for a driver still on their temporary password.
+  Future<bool> changePassword(String currentPassword, String newPassword) async {
+    if (_user == null) return false;
+    _error = null;
+    try {
+      await _authService.changePassword(currentPassword, newPassword);
+    } on FirebaseAuthException catch (e) {
+      _error = switch (e.code) {
+        'wrong-password' || 'invalid-credential' =>
+          'The password you entered is incorrect.',
+        'weak-password' => 'Please choose a stronger password.',
+        'too-many-requests' => 'Too many attempts. Please try again later.',
+        'network-request-failed' =>
+          'No internet connection. Please try again.',
+        _ => 'Could not change your password. Please try again.',
+      };
+      notifyListeners();
+      return false;
+    } catch (_) {
+      _error = 'Could not change your password. Please try again.';
+      notifyListeners();
+      return false;
+    }
+
+    if (_user!.mustChangePassword) {
+      try {
+        await FirebaseFirestore.instance
+            .collection('users')
+            .doc(_user!.uid)
+            .update({'mustChangePassword': false});
+      } catch (_) {
+        // Best-effort — worst case they're asked once more next start.
+      }
+      _user = _user!.copyWith(mustChangePassword: false);
+    }
+    notifyListeners();
+    return true;
   }
 
   /// Clears the one-time "your account was re-enabled" notice after the
