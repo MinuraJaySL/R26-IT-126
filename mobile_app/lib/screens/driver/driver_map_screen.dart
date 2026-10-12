@@ -107,7 +107,7 @@ class _DriverMapScreenState extends State<DriverMapScreen> {
   void _startTrip() {
     final driverId = context.read<AuthProvider>().user!.uid;
     setState(() => _tripActive = true);
-    _gpsSub = _locationService.positionStream().listen((pos) {
+    _gpsSub = _locationService.tripPositionStream().listen((pos) {
       final loc = LatLng(pos.latitude, pos.longitude);
       setState(() => _driverPos = loc);
       if (_autoFollow) _mapController.move(loc, _mapController.camera.zoom);

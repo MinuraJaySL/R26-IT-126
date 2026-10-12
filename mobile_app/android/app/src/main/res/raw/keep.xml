@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The tracking notification's icon is looked up by name at run time, so
+     the release build's resource shrinker can't see that it is used and
+     would strip it without this. -->
+<resources xmlns:tools="http://schemas.android.com/tools"
+    tools:keep="@drawable/ic_stat_tracking" />
