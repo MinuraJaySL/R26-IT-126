@@ -85,7 +85,7 @@ class _ResidentDashboardState extends State<ResidentDashboard> {
               ? 'The garbage truck has arrived at your pickup point!\n\n'
                   'Please bring your waste out now.'
               : 'Your waste has been successfully collected.\n\n'
-                  'Thank you for using Smart Waste!',
+                  'Thank you for using GreenSweep!',
           textAlign: TextAlign.center,
         ),
         actions: [

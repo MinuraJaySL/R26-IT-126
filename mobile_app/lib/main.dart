@@ -37,7 +37,7 @@ class WasteApp extends StatelessWidget {
         builder: (context) {
           final router = buildRouter();
           return MaterialApp.router(
-            title: 'Smart Waste',
+            title: 'GreenSweep',
             debugShowCheckedModeBanner: false,
             theme: ThemeData(
               useMaterial3: true,
