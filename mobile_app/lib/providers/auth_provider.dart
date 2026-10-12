@@ -159,9 +159,32 @@ class AuthProvider extends ChangeNotifier {
   Future<void> signOut() async {
     _tokenRefreshSub?.cancel();
     _tokenRefreshSub = null;
+    await _clearFcmToken();
     await _authService.signOut();
     _user = null;
     notifyListeners();
+  }
+
+  // Unregisters this device from the account being signed out, so its
+  // pushes stop arriving here (the next person to sign in on this phone
+  // would otherwise see them). Only removes the token if it is this
+  // device's — the account may since have signed in on another phone, and
+  // that one must keep receiving. Has to run before the sign-out: the rules
+  // only let a signed-in user update their own doc.
+  Future<void> _clearFcmToken() async {
+    final uid = _user?.uid;
+    if (uid == null) return;
+    try {
+      final doc = FirebaseFirestore.instance.collection('users').doc(uid);
+      await Future(() async {
+        final token = await _notifService.getToken();
+        if (token == null) return;
+        final saved = (await doc.get()).data()?['fcmToken'];
+        if (saved == token) await doc.update({'fcmToken': FieldValue.delete()});
+      }).timeout(const Duration(seconds: 5));
+    } catch (_) {
+      // Best-effort — being offline must not stop someone signing out.
+    }
   }
 
   // Requests notification permission, saves the current FCM token, and

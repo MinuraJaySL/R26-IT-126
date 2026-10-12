@@ -11,6 +11,7 @@ SnackBar appSnackBar(
   String message, {
   SnackKind kind = SnackKind.info,
   Duration duration = const Duration(seconds: 4),
+  SnackBarAction? action,
 }) {
   final (IconData icon, Color? color) = switch (kind) {
     SnackKind.success => (Icons.check_circle_outline, Colors.green.shade700),
@@ -20,6 +21,7 @@ SnackBar appSnackBar(
   return SnackBar(
     backgroundColor: color,
     duration: duration,
+    action: action,
     content: Row(
       children: [
         Icon(icon, color: Colors.white, size: 20),
