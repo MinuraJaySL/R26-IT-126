@@ -81,6 +81,14 @@ const VERIFIED_GRACE_MINUTES = 15;
 const IP_RATE_LIMIT_MAX = 20;
 const IP_RATE_LIMIT_WINDOW_MINUTES = 60;
 
+// Nightly clean-up (see purgeOldData). CLEANUP_CRON must match the entry in
+// wrangler.toml exactly — it is how the scheduled handler tells this run
+// apart from the announcement runs.
+const CLEANUP_CRON = "30 20 * * *";
+const RETENTION_DAYS = 30;
+// Firestore accepts at most 500 writes in one commit.
+const CLEANUP_BATCH = 300;
+
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const CODE_RE = /^\d{6}$/;
 
@@ -397,7 +405,7 @@ async function firestoreIncrement(
 /**
  * Single-field equality query via Firestore's :runQuery REST endpoint.
  * Deliberately limited to one equality filter — the Flutter side avoids
- * composite indexes throughout this app (see firestore_service.dart's
+ * composite indexes for its one-off lookups (see firestore_service.dart's
  * fetchLatestDeniedRequest comment) by filtering/sorting the rest
  * client-side instead; this mirrors that same choice on the Worker side so
  * nothing here depends on an index existing in the Firebase console.
@@ -436,6 +444,56 @@ async function firestoreQueryEquals(
       id: r.document!.name.split("/").pop()!,
       fields: fromFields(r.document!.fields),
     }));
+}
+
+/**
+ * Deletes up to CLEANUP_BATCH documents of a collection whose timestamp
+ * [field] is before [cutoff]: one query for their names, one commit to
+ * delete them. A range on a single field is served by Firestore's automatic
+ * index, so nothing needs creating. Returns how many were deleted — a full
+ * batch means more are waiting, which the next night's run picks up.
+ */
+async function firestoreDeleteOlderThan(
+  env: Env,
+  token: string,
+  collectionId: string,
+  field: string,
+  cutoff: Date
+): Promise<number> {
+  const base = `https://firestore.googleapis.com/v1/projects/${env.FIREBASE_PROJECT_ID}/databases/(default)/documents`;
+  const headers = { Authorization: `Bearer ${token}`, "Content-Type": "application/json" };
+
+  const found = await fetch(`${base}:runQuery`, {
+    method: "POST",
+    headers,
+    body: JSON.stringify({
+      structuredQuery: {
+        from: [{ collectionId }],
+        where: {
+          fieldFilter: {
+            field: { fieldPath: field },
+            op: "LESS_THAN",
+            value: { timestampValue: cutoff.toISOString() },
+          },
+        },
+        // Names only — the contents aren't needed to delete a document.
+        select: { fields: [{ fieldPath: "__name__" }] },
+        limit: CLEANUP_BATCH,
+      },
+    }),
+  });
+  if (!found.ok) throw new Error(`query ${collectionId}: ${await found.text()}`);
+  const rows = (await found.json()) as { document?: { name: string } }[];
+  const names = rows.filter((r) => r.document).map((r) => r.document!.name);
+  if (names.length === 0) return 0;
+
+  const deleted = await fetch(`${base}:commit`, {
+    method: "POST",
+    headers,
+    body: JSON.stringify({ writes: names.map((name) => ({ delete: name })) }),
+  });
+  if (!deleted.ok) throw new Error(`delete ${collectionId}: ${await deleted.text()}`);
+  return names.length;
 }
 
 // ---------------------------------------------------------------------------
@@ -1344,6 +1402,39 @@ async function handleSendAnnouncementNow(
   return json({ ok: true, notified });
 }
 
+/**
+ * Removes records nobody will look at again, so the collections the app
+ * lists don't grow forever:
+ *   - inbox notifications older than RETENTION_DAYS
+ *   - announcements whose collection date passed RETENTION_DAYS ago
+ *   - sign-up codes that expired over a day ago (a completed sign-up
+ *     already deletes its own; these are the abandoned ones)
+ *   - IP rate-limit counters whose window started over a day ago
+ * Pickup requests and bin reports are deliberately kept. Each collection is
+ * attempted on its own, so one failing doesn't stop the others.
+ */
+async function purgeOldData(env: Env): Promise<Record<string, number | string>> {
+  const token = await getGoogleAccessToken(env);
+  const daysAgo = (days: number) => new Date(Date.now() - days * 86_400_000);
+  const targets: [collectionId: string, field: string, cutoff: Date][] = [
+    ["notifications", "createdAt", daysAgo(RETENTION_DAYS)],
+    ["collectionAnnouncements", "collectionDate", daysAgo(RETENTION_DAYS)],
+    ["emailVerifications", "expiresAt", daysAgo(1)],
+    ["rateLimits", "windowStart", daysAgo(1)],
+  ];
+
+  const result: Record<string, number | string> = {};
+  for (const [collectionId, field, cutoff] of targets) {
+    try {
+      result[collectionId] = await firestoreDeleteOlderThan(env, token, collectionId, field, cutoff);
+    } catch (err) {
+      console.error(err);
+      result[collectionId] = "failed";
+    }
+  }
+  return result;
+}
+
 // ---------------------------------------------------------------------------
 // Router
 // ---------------------------------------------------------------------------
@@ -1386,10 +1477,16 @@ export default {
     }
   },
 
-  // Cron Triggers — see wrangler.toml [triggers]. Both runs do the same
-  // thing: the first is the fixed-time send for tomorrow's collections, the
-  // second (at UPDATE_DEADLINE_HOUR) retries anything the first one missed.
+  // Cron Triggers — see wrangler.toml [triggers]. The two evening runs do
+  // the same thing: the first is the fixed-time send for tomorrow's
+  // collections, the second (at UPDATE_DEADLINE_HOUR) retries anything the
+  // first one missed. The night run only cleans up old records.
   async scheduled(event: ScheduledController, env: Env, _ctx: ExecutionContext): Promise<void> {
+    if (event.cron === CLEANUP_CRON) {
+      const purged = await purgeOldData(env);
+      console.log(`[scheduled] cron="${event.cron}" purged=${JSON.stringify(purged)}`);
+      return;
+    }
     const result = await sendDueAnnouncements(env);
     console.log(
       `[scheduled] cron="${event.cron}" processed=${result.processed} notified=${result.notified}`

@@ -12,6 +12,16 @@ class FirestoreService {
 
   final FirebaseFirestore _db = FirebaseFirestore.instance;
 
+  // History lists load only their newest entries — they would otherwise
+  // grow without bound. Each capped query pairs an equality filter with an
+  // orderBy on another field, which Firestore only serves from a composite
+  // index: those are declared in firestore.indexes.json and have to be
+  // deployed (firebase deploy --only firestore:indexes) before the query
+  // works. Lists of things still awaiting action — active requests, open
+  // reports, pending announcements — are never capped.
+  static const _inboxLimit = 50;
+  static const _historyLimit = 100;
+
   // Bins
   Stream<List<SmartBin>> watchBins() {
     return _db.collection('bins').snapshots().map(
@@ -38,12 +48,10 @@ class FirestoreService {
     return _db
         .collection('pickupRequests')
         .where('residentId', isEqualTo: residentId)
+        .orderBy('createdAt', descending: true)
+        .limit(_historyLimit)
         .snapshots()
-        .map((snap) {
-      final list = snap.docs.map(PickupRequest.fromFirestore).toList();
-      list.sort((a, b) => b.createdAt.compareTo(a.createdAt));
-      return list;
-    });
+        .map((snap) => snap.docs.map(PickupRequest.fromFirestore).toList());
   }
 
   Stream<List<PickupRequest>> watchActiveRequests() {
@@ -117,12 +125,10 @@ class FirestoreService {
     return _db
         .collection('pickupRequests')
         .where('status', isEqualTo: 'missed')
+        .orderBy('createdAt', descending: true)
+        .limit(_historyLimit)
         .snapshots()
-        .map((snap) {
-      final list = snap.docs.map(PickupRequest.fromFirestore).toList();
-      list.sort((a, b) => b.createdAt.compareTo(a.createdAt));
-      return list;
-    });
+        .map((snap) => snap.docs.map(PickupRequest.fromFirestore).toList());
   }
 
   // Bin reports (resident-submitted overflow/damage reports)
@@ -134,12 +140,10 @@ class FirestoreService {
     return _db
         .collection('binReports')
         .where('residentId', isEqualTo: residentId)
+        .orderBy('createdAt', descending: true)
+        .limit(_historyLimit)
         .snapshots()
-        .map((snap) {
-      final list = snap.docs.map(BinReport.fromFirestore).toList();
-      list.sort((a, b) => b.createdAt.compareTo(a.createdAt));
-      return list;
-    });
+        .map((snap) => snap.docs.map(BinReport.fromFirestore).toList());
   }
 
   Stream<List<BinReport>> watchOpenBinReports() {
@@ -158,13 +162,10 @@ class FirestoreService {
     return _db
         .collection('binReports')
         .where('status', isEqualTo: 'resolved')
+        .orderBy('resolvedAt', descending: true)
+        .limit(_historyLimit)
         .snapshots()
-        .map((snap) {
-      final list = snap.docs.map(BinReport.fromFirestore).toList();
-      list.sort((a, b) =>
-          (b.resolvedAt ?? b.createdAt).compareTo(a.resolvedAt ?? a.createdAt));
-      return list;
-    });
+        .map((snap) => snap.docs.map(BinReport.fromFirestore).toList());
   }
 
   Future<void> resolveBinReport(
@@ -206,13 +207,10 @@ class FirestoreService {
     return _db
         .collection('accountRecoveryRequests')
         .where('status', isEqualTo: 'resolved')
+        .orderBy('resolvedAt', descending: true)
+        .limit(_historyLimit)
         .snapshots()
-        .map((snap) {
-      final list = snap.docs.map(RecoveryRequest.fromFirestore).toList();
-      list.sort((a, b) =>
-          (b.resolvedAt ?? b.createdAt).compareTo(a.resolvedAt ?? a.createdAt));
-      return list;
-    });
+        .map((snap) => snap.docs.map(RecoveryRequest.fromFirestore).toList());
   }
 
   // Resolves the ticket and, if reenableAccount is true, flips the user's
@@ -375,7 +373,8 @@ class FirestoreService {
     });
   }
 
-  // A driver's own posted announcements, most recent first.
+  // A driver's own posted announcements, most recent first. Not capped:
+  // the Worker's nightly clean-up removes old ones, which keeps this short.
   Stream<List<CollectionAnnouncement>> watchMyAnnouncements(String driverId) {
     return _db
         .collection('collectionAnnouncements')
@@ -389,17 +388,16 @@ class FirestoreService {
   }
 
   // In-app notification inbox — records are written server-side by the
-  // Worker (see cf-worker's writeNotification), never by this app.
+  // Worker (see cf-worker's writeNotification), never by this app, and
+  // removed by its nightly clean-up once they're a month old.
   Stream<List<AppNotification>> watchMyNotifications(String userId) {
     return _db
         .collection('notifications')
         .where('userId', isEqualTo: userId)
+        .orderBy('createdAt', descending: true)
+        .limit(_inboxLimit)
         .snapshots()
-        .map((snap) {
-      final list = snap.docs.map(AppNotification.fromFirestore).toList();
-      list.sort((a, b) => b.createdAt.compareTo(a.createdAt));
-      return list;
-    });
+        .map((snap) => snap.docs.map(AppNotification.fromFirestore).toList());
   }
 
   Future<void> markNotificationRead(String id) {
