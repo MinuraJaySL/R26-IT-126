@@ -9,6 +9,7 @@ import '../../providers/auth_provider.dart';
 import '../../services/firestore_service.dart';
 import '../../services/location_service.dart';
 import '../../widgets/map_recenter_button.dart';
+import '../../widgets/app_feedback.dart';
 
 class ReportIssueScreen extends StatefulWidget {
   const ReportIssueScreen({super.key});
@@ -60,7 +61,7 @@ class _ReportIssueScreenState extends State<ReportIssueScreen> {
     if (_selectedPoint == null) return;
     if (_noteCtrl.text.trim().isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please describe the problem.')),
+        appSnackBar('Please describe the problem.', kind: SnackKind.error),
       );
       return;
     }
@@ -78,7 +79,10 @@ class _ReportIssueScreenState extends State<ReportIssueScreen> {
     await _fs.createBinReport(report);
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Report submitted — a driver will check it out.')),
+        appSnackBar(
+          'Report submitted — a driver will check it out.',
+          kind: SnackKind.success,
+        ),
       );
       context.pop();
     }

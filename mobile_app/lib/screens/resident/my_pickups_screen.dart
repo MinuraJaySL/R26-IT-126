@@ -6,6 +6,7 @@ import '../../models/pickup_request.dart';
 import '../../providers/auth_provider.dart';
 import '../../services/firestore_service.dart';
 import '../../services/notification_service.dart';
+import '../../widgets/app_feedback.dart';
 
 class MyPickupsScreen extends StatefulWidget {
   const MyPickupsScreen({super.key});
@@ -164,10 +165,10 @@ class _RequestCard extends StatelessWidget {
                 await FirestoreService().deleteRequest(request.id);
               } catch (_) {
                 if (context.mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text('This request can no longer be deleted.'),
-                    ),
+                  showErrorDialog(
+                    context,
+                    'This request can no longer be deleted.',
+                    title: 'Cannot Delete Request',
                   );
                 }
               }

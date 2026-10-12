@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../models/collection_announcement.dart';
 import '../../services/admin_service.dart';
 import '../../services/firestore_service.dart';
+import '../../widgets/app_feedback.dart';
 
 /// Every collection announcement still waiting to go out, one row per ward
 /// and date, each sent on its own — so an admin sees exactly what residents
@@ -86,16 +87,24 @@ class _AdminScheduledAnnouncementsScreenState
     if (confirmed != true || !mounted) return;
 
     setState(() => _sending.add(a.id));
-    String message;
+    int? notified;
+    String? error;
     try {
-      final notified = await _adminService.sendAnnouncement(a.id);
-      message = 'Sent to $notified resident(s) in ${a.ward}.';
+      notified = await _adminService.sendAnnouncement(a.id);
     } on AdminApiException catch (e) {
-      message = e.message;
+      error = e.message;
     }
     if (!mounted) return;
     setState(() => _sending.remove(a.id));
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
+    if (error == null) {
+      showSuccessDialog(
+        context,
+        'Sent to $notified resident(s) in ${a.ward}.',
+        title: 'Announcement Sent',
+      );
+    } else {
+      showErrorDialog(context, error, title: 'Could Not Send');
+    }
   }
 
   String _formatDate(DateTime d) => '${d.day}/${d.month}/${d.year}';

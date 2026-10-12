@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import '../../models/recovery_request.dart';
 import '../../providers/auth_provider.dart';
 import '../../services/firestore_service.dart';
+import '../../widgets/app_feedback.dart';
 
 class AdminRecoveryRequestsScreen extends StatelessWidget {
   const AdminRecoveryRequestsScreen({super.key});
@@ -130,14 +131,12 @@ class _OpenRequestsTab extends StatelessWidget {
       );
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Request resolved'), backgroundColor: Colors.green),
+          appSnackBar('Request resolved', kind: SnackKind.success),
         );
       }
     } catch (e) {
       if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red),
-        );
+        showErrorDialog(context, '$e');
       }
     }
   }

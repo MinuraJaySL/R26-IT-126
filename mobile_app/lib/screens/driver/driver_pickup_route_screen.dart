@@ -11,6 +11,7 @@ import '../../services/location_service.dart';
 import '../../services/road_route_service.dart';
 import '../../utils/geo_utils.dart';
 import '../../widgets/map_recenter_button.dart';
+import '../../widgets/app_feedback.dart';
 
 /// Live route through active pickup requests only — the pickup-request
 /// counterpart to the Bin Priority Map, deliberately kept separate so a
@@ -125,9 +126,9 @@ class _DriverPickupRouteScreenState extends State<DriverPickupRouteScreen> {
         _fs.markRequestArrived(req.id, driverId);
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('Arrived at pickup point (${dist.toStringAsFixed(0)} m)'),
-              backgroundColor: Colors.green,
+            appSnackBar(
+              'Arrived at pickup point (${dist.toStringAsFixed(0)} m)',
+              kind: SnackKind.success,
               duration: const Duration(seconds: 3),
             ),
           );

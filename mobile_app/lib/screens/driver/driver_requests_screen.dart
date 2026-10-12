@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 import '../../models/pickup_request.dart';
 import '../../providers/auth_provider.dart';
 import '../../services/firestore_service.dart';
+import '../../widgets/app_feedback.dart';
 
 class DriverRequestsScreen extends StatefulWidget {
   const DriverRequestsScreen({super.key});
@@ -41,17 +42,15 @@ class _DriverRequestsScreenState extends State<DriverRequestsScreen> {
       await _fs.markRequestArrived(req.id, driverId);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Marked as arrived — resident notified!'),
-            backgroundColor: Colors.green,
+          appSnackBar(
+            'Marked as arrived — resident notified!',
+            kind: SnackKind.success,
           ),
         );
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red),
-        );
+        showErrorDialog(context, '$e');
       }
     }
   }

@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import '../../models/collection_announcement.dart';
 import '../../providers/auth_provider.dart';
 import '../../services/firestore_service.dart';
+import '../../widgets/app_feedback.dart';
 
 class MyAnnouncementsScreen extends StatelessWidget {
   const MyAnnouncementsScreen({super.key});
@@ -62,6 +63,8 @@ class _AnnouncementCard extends StatelessWidget {
   // Only offered while un-sent (see firestore.rules) — once residents have
   // been notified, deleting the record wouldn't take that back.
   Future<void> _confirmCancel(BuildContext context) async {
+    // Taken before the awaits: a successful cancel removes this card, and
+    // its context with it.
     final messenger = ScaffoldMessenger.of(context);
     final confirmed = await showDialog<bool>(
       context: context,
@@ -90,16 +93,18 @@ class _AnnouncementCard extends StatelessWidget {
     try {
       await FirestoreService().cancelCollectionAnnouncement(a.id);
       messenger.showSnackBar(
-        const SnackBar(content: Text('Announcement cancelled.')),
+        appSnackBar('Announcement cancelled.', kind: SnackKind.success),
       );
     } catch (e) {
       // Most likely the push went out between this card rendering and the
       // tap — the rules refuse to delete a sent announcement.
-      messenger.showSnackBar(
-        const SnackBar(
-          content: Text('Could not cancel — residents may already have been notified.'),
-        ),
-      );
+      if (context.mounted) {
+        showErrorDialog(
+          context,
+          'Residents may already have been notified.',
+          title: 'Could Not Cancel',
+        );
+      }
     }
   }
 

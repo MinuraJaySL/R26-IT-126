@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import '../../models/pickup_request.dart';
 import '../../services/firestore_service.dart';
+import '../../widgets/app_feedback.dart';
 
 class DriverMissedScreen extends StatelessWidget {
   const DriverMissedScreen({super.key});
@@ -106,18 +107,15 @@ class _MissedCardState extends State<_MissedCard> {
           widget.request.id, RequestStatus.active);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Request reactivated — resident will be notified when truck arrives.'),
-            backgroundColor: Colors.green,
+          appSnackBar(
+            'Request reactivated — resident will be notified when truck arrives.',
+            kind: SnackKind.success,
           ),
         );
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-              content: Text('Error: $e'), backgroundColor: Colors.red),
-        );
+        showErrorDialog(context, '$e');
       }
     } finally {
       if (mounted) setState(() => _busy = false);

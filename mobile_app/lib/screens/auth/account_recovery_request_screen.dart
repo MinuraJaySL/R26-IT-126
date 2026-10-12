@@ -8,6 +8,7 @@ import '../../services/firestore_service.dart';
 import '../../theme/app_colors.dart';
 import '../../widgets/gradient_background.dart';
 import '../../widgets/gradient_button.dart';
+import '../../widgets/app_feedback.dart';
 
 const _defaultMessage =
     'I believe my account was disabled in error. Please review and '
@@ -52,9 +53,7 @@ class _AccountRecoveryRequestScreenState
       if (mounted) setState(() => _sent = true);
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Could not send request: $e')),
-        );
+        showErrorDialog(context, '$e', title: 'Could Not Send Request');
       }
     } finally {
       if (mounted) setState(() => _busy = false);

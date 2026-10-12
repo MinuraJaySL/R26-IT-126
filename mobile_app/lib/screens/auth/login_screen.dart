@@ -7,6 +7,7 @@ import '../../theme/app_colors.dart';
 import '../../widgets/gradient_background.dart';
 import '../../widgets/gradient_button.dart';
 import '../../widgets/styled_text_field.dart';
+import '../../widgets/app_feedback.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -67,9 +68,11 @@ class _LoginScreenState extends State<LoginScreen>
           break;
       }
     } else {
-      ScaffoldMessenger.of(
+      showErrorDialog(
         context,
-      ).showSnackBar(SnackBar(content: Text(auth.error ?? 'Login failed')));
+        auth.error ?? 'Login failed',
+        title: 'Login Failed',
+      );
     }
   }
 
@@ -136,8 +139,10 @@ class _LoginScreenState extends State<LoginScreen>
                         );
                       } else {
                         setState(() => busy = false);
-                        ScaffoldMessenger.of(dialogContext).showSnackBar(
-                          SnackBar(content: Text(auth.error ?? 'Something went wrong.')),
+                        showErrorDialog(
+                          dialogContext,
+                          auth.error ?? 'Something went wrong.',
+                          title: 'Could Not Send Reset Link',
                         );
                       }
                     },

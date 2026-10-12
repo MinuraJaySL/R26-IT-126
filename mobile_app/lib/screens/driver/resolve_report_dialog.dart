@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import '../../models/bin_report.dart';
 import '../../providers/auth_provider.dart';
 import '../../services/firestore_service.dart';
+import '../../widgets/app_feedback.dart';
 
 const _quickReasons = ['Collected', 'Already Clear', 'False Alarm'];
 
@@ -80,15 +81,13 @@ Future<bool> showResolveReportDialog(BuildContext context, BinReport report) asy
     await FirestoreService().resolveBinReport(report.id, driverId, note);
     if (context.mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Report resolved'), backgroundColor: Colors.green),
+        appSnackBar('Report resolved', kind: SnackKind.success),
       );
     }
     return true;
   } catch (e) {
     if (context.mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red),
-      );
+      showErrorDialog(context, '$e');
     }
     return false;
   }

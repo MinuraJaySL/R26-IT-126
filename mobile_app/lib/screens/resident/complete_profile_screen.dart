@@ -8,6 +8,7 @@ import '../../widgets/gradient_button.dart';
 import '../../widgets/confirm_logout_dialog.dart';
 import '../../widgets/styled_text_field.dart';
 import '../../widgets/ward_picker.dart';
+import '../../widgets/app_feedback.dart';
 
 final _phoneRegex = RegExp(r'^\+?[0-9]{7,15}$');
 
@@ -42,7 +43,9 @@ class _CompleteProfileScreenState extends State<CompleteProfileScreen> {
   }
 
   void _showError(String message) {
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
+    ScaffoldMessenger.of(context).showSnackBar(
+      appSnackBar(message, kind: SnackKind.error),
+    );
   }
 
   Future<void> _submit() async {
@@ -68,7 +71,11 @@ class _CompleteProfileScreenState extends State<CompleteProfileScreen> {
     if (ok) {
       context.go('/resident');
     } else {
-      _showError(auth.error ?? 'Could not save your profile. Please try again.');
+      showErrorDialog(
+        context,
+        auth.error ?? 'Could not save your profile. Please try again.',
+        title: 'Could Not Save Profile',
+      );
     }
   }
 

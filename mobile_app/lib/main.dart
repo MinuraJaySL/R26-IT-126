@@ -62,6 +62,12 @@ class WasteApp extends StatelessWidget {
                 backgroundColor: AppColors.primaryDark,
                 foregroundColor: Colors.white,
               ),
+              snackBarTheme: SnackBarThemeData(
+                behavior: SnackBarBehavior.floating,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+              ),
               cardTheme: CardThemeData(
                 elevation: 2,
                 color: AppColors.cardBackground,

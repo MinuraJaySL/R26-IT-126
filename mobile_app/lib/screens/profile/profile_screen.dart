@@ -6,6 +6,7 @@ import '../../providers/auth_provider.dart';
 import '../../widgets/app_input_decoration.dart';
 import '../../widgets/ward_picker.dart';
 import '../../widgets/confirm_logout_dialog.dart';
+import '../../widgets/app_feedback.dart';
 
 final _phoneRegex = RegExp(r'^\+?[0-9]{7,15}$');
 
@@ -43,7 +44,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     if (!_formKey.currentState!.validate()) return;
     if (_selectedWard == null) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please select your ward')),
+        appSnackBar('Please select your ward', kind: SnackKind.error),
       );
       return;
     }
@@ -56,11 +57,17 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
     if (!mounted) return;
     setState(() => _busy = false);
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(ok ? 'Profile updated' : (auth.error ?? 'Could not save changes')),
-      ),
-    );
+    if (ok) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        appSnackBar('Profile updated', kind: SnackKind.success),
+      );
+    } else {
+      showErrorDialog(
+        context,
+        auth.error ?? 'Could not save changes',
+        title: 'Could Not Save Profile',
+      );
+    }
   }
 
   Future<void> _signOut() async {

@@ -12,6 +12,7 @@ import '../../services/road_route_service.dart';
 import '../../services/route_service.dart';
 import '../../utils/geo_utils.dart';
 import '../../widgets/map_recenter_button.dart';
+import '../../widgets/app_feedback.dart';
 
 class DriverMapScreen extends StatefulWidget {
   const DriverMapScreen({super.key});
@@ -180,10 +181,8 @@ class _DriverMapScreenState extends State<DriverMapScreen> {
     );
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            '${ordered.length} stops — total ~${(dist / 1000).toStringAsFixed(2)} km',
-          ),
+        appSnackBar(
+          '${ordered.length} stops — total ~${(dist / 1000).toStringAsFixed(2)} km',
         ),
       );
     }
@@ -273,8 +272,10 @@ class _DriverMapScreenState extends State<DriverMapScreen> {
       await _fs.markBinCollected(bin.id);
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Failed to update bin. Please try again.')),
+        showErrorDialog(
+          context,
+          'Failed to update bin. Please try again.',
+          title: 'Bin Not Updated',
         );
       }
     }

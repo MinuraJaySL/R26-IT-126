@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../services/admin_service.dart';
 import '../../widgets/app_input_decoration.dart';
+import '../../widgets/app_feedback.dart';
 
 class AddDriverScreen extends StatefulWidget {
   const AddDriverScreen({super.key});
@@ -61,7 +62,7 @@ class _AddDriverScreenState extends State<AddDriverScreen> {
       Navigator.of(context).pop();
     } on AdminApiException catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.message)));
+      showErrorDialog(context, e.message, title: 'Could Not Add Driver');
     } finally {
       if (mounted) setState(() => _busy = false);
     }

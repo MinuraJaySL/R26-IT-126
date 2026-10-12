@@ -3,6 +3,7 @@ import 'package:latlong2/latlong.dart';
 import '../../models/pickup_request.dart';
 import '../../services/firestore_service.dart';
 import 'navigate_to_point_screen.dart';
+import '../../widgets/app_feedback.dart';
 
 class MissedNavigationScreen extends StatelessWidget {
   final PickupRequest request;
@@ -13,18 +14,16 @@ class MissedNavigationScreen extends StatelessWidget {
       await FirestoreService().updateRequestStatus(request.id, RequestStatus.active);
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Request reactivated — resident will be notified when truck arrives.'),
-            backgroundColor: Colors.green,
+          appSnackBar(
+            'Request reactivated — resident will be notified when truck arrives.',
+            kind: SnackKind.success,
           ),
         );
       }
       return true;
     } catch (e) {
       if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red),
-        );
+        showErrorDialog(context, '$e');
       }
       return false;
     }

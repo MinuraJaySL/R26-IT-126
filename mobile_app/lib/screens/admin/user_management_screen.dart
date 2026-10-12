@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../services/admin_service.dart';
+import '../../widgets/app_feedback.dart';
 
 class UserManagementScreen extends StatefulWidget {
   const UserManagementScreen({super.key});
@@ -182,9 +183,7 @@ class _UserTile extends StatelessWidget {
       onEdited();
     } catch (e) {
       if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red),
-        );
+        showErrorDialog(context, '$e');
       }
     }
   }
@@ -325,7 +324,7 @@ class _EditDriverDialogState extends State<_EditDriverDialog> {
         _phoneCtrl.text.trim().isEmpty ||
         _vehicleCtrl.text.trim().isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('All fields are required.')),
+        appSnackBar('All fields are required.', kind: SnackKind.error),
       );
       return;
     }
@@ -340,15 +339,13 @@ class _EditDriverDialogState extends State<_EditDriverDialog> {
       if (mounted) {
         Navigator.pop(context);
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Driver details updated'), backgroundColor: Colors.green),
+          appSnackBar('Driver details updated', kind: SnackKind.success),
         );
         widget.onSaved();
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red),
-        );
+        showErrorDialog(context, '$e');
       }
     } finally {
       if (mounted) setState(() => _busy = false);
