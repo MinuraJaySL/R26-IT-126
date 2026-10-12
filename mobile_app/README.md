@@ -98,6 +98,16 @@ adb install -r build/app/outputs/flutter-apk/app-release.apk
 The app is already pointed at the project's Firebase project
 (`lib/firebase_options.dart`) and Worker (`lib/config/verification_api_config.dart`).
 
+## Running the tests
+
+```
+flutter test
+```
+
+The tests in `test/` cover the route ordering, the distance calculations, the
+data models, the user-facing error messages and the shared snackbars and
+pop-ups. They need no phone and no connection to Firebase.
+
 ## Deploying the backend
 
 Firestore rules and indexes (needs the Firebase CLI, logged in to the project):
