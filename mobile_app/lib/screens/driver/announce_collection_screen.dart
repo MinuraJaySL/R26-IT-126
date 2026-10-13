@@ -1,3 +1,4 @@
+import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
@@ -179,10 +180,20 @@ class _AnnounceCollectionScreenState extends State<AnnounceCollectionScreen> {
       if (mounted) Navigator.of(context).pop();
     } catch (e) {
       if (mounted) {
-        _showError(friendlyError(
-          e,
-          fallback: 'Could not post the announcement. Please try again.',
-        ));
+        // The server enforces the same deadlines on its own clock, so a
+        // refusal that got past the checks above means this phone's clock
+        // disagrees with it.
+        final refused = e is FirebaseException && e.code == 'permission-denied';
+        _showError(
+          refused
+              ? 'The announcement was not accepted. It may be past the '
+                  'deadline for this date — check that your phone\'s date '
+                  'and time are set correctly.'
+              : friendlyError(
+                  e,
+                  fallback: 'Could not post the announcement. Please try again.',
+                ),
+        );
       }
     } finally {
       if (mounted) setState(() => _busy = false);

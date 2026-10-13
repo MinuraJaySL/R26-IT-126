@@ -1,3 +1,4 @@
+import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:go_router/go_router.dart';
@@ -8,6 +9,8 @@ import '../../models/pickup_request.dart';
 import '../../providers/auth_provider.dart';
 import '../../services/firestore_service.dart';
 import '../../services/location_service.dart';
+import '../../utils/friendly_error.dart';
+import '../../widgets/app_feedback.dart';
 import '../../widgets/map_recenter_button.dart';
 
 class FlagPlacementScreen extends StatefulWidget {
@@ -68,7 +71,27 @@ class _FlagPlacementScreenState extends State<FlagPlacementScreen> {
       createdAt: DateTime.now(),
       expiresAt: DateTime.now().add(Duration(hours: _timeWindowHours)),
     );
-    await _fs.createPickupRequest(req);
+    try {
+      await _fs.createPickupRequest(req);
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _saving = false);
+      // The server checks the pickup window against its own clock, so a
+      // refusal here most likely means this phone's clock is wrong.
+      final refused = e is FirebaseException && e.code == 'permission-denied';
+      showErrorDialog(
+        context,
+        refused
+            ? 'The request was not accepted. Check that your phone\'s date '
+                'and time are set correctly, then try again.'
+            : friendlyError(
+                e,
+                fallback: 'Could not place the request. Please try again.',
+              ),
+        title: 'Request Not Placed',
+      );
+      return;
+    }
     if (!mounted) return;
     await showDialog<void>(
       context: context,

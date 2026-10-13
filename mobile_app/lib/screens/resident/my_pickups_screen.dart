@@ -332,9 +332,8 @@ class _RequestCard extends StatelessWidget {
                     child: OutlinedButton.icon(
                       icon: const Icon(Icons.warning_amber_rounded, size: 18),
                       label: const Text('Missed'),
-                      onPressed: () => FirestoreService()
-                          .updateRequestStatus(
-                              request.id, RequestStatus.missed),
+                      onPressed: () =>
+                          FirestoreService().markRequestMissed(request.id),
                       style: OutlinedButton.styleFrom(
                         foregroundColor: Colors.orange,
                         side: const BorderSide(color: Colors.orange),

@@ -40,8 +40,15 @@ class FirestoreService {
   }
 
   // Pickup requests
+  //
+  // createdAt is stamped by the server, not taken from the phone's clock —
+  // firestore.rules refuses anything else, since the 10-minute delete window
+  // is measured from it.
   Future<void> createPickupRequest(PickupRequest req) {
-    return _db.collection('pickupRequests').doc(req.id).set(req.toMap());
+    return _db.collection('pickupRequests').doc(req.id).set({
+      ...req.toMap(),
+      'createdAt': FieldValue.serverTimestamp(),
+    });
   }
 
   Stream<List<PickupRequest>> watchMyRequests(String residentId) {
@@ -78,6 +85,17 @@ class FirestoreService {
         .update({'status': status.name});
   }
 
+  // The resident's own "Missed" tap. Writes autoMissed false explicitly: a
+  // request reactivated after an earlier timeout still carries true, and
+  // firestore.rules only lets a timeout (autoMissed true) through once the
+  // 15 minutes are really up.
+  Future<void> markRequestMissed(String id) {
+    return _db.collection('pickupRequests').doc(id).update({
+      'status': RequestStatus.missed.name,
+      'autoMissed': false,
+    });
+  }
+
   // Stamps arrivedAt alongside the status change — that timestamp is what
   // starts the 15-minute grace period before an unanswered arrival
   // auto-resolves to `missed` (see autoResolveStaleRequests).
@@ -95,22 +113,31 @@ class FirestoreService {
   // app, so this is what actually resolves a stuck request, the next time
   // any relevant screen has it in view. Idempotent: once a request's status
   // changes, it stops matching these conditions, so it won't refire.
+  //
+  // The phone's clock only decides when to try: firestore.rules checks the
+  // same two deadlines against the server's clock and refuses a change that
+  // isn't due yet. A refusal (this phone's clock runs fast, or another
+  // screen got there first) is simply left for the next run.
   Future<void> autoResolveStaleRequests(List<PickupRequest> requests) async {
     final now = DateTime.now();
     for (final r in requests) {
-      if (r.status == RequestStatus.active &&
-          r.expiresAt != null &&
-          now.isAfter(r.expiresAt!)) {
-        await updateRequestStatus(r.id, RequestStatus.expired);
-        _notify.notifyEvent('autoResolved', r.id); // fire-and-forget
-      } else if (r.status == RequestStatus.arrived &&
-          r.arrivedAt != null &&
-          now.difference(r.arrivedAt!) >= const Duration(minutes: 15)) {
-        await _db.collection('pickupRequests').doc(r.id).update({
-          'status': RequestStatus.missed.name,
-          'autoMissed': true,
-        });
-        _notify.notifyEvent('autoResolved', r.id); // fire-and-forget
+      try {
+        if (r.status == RequestStatus.active &&
+            r.expiresAt != null &&
+            now.isAfter(r.expiresAt!)) {
+          await updateRequestStatus(r.id, RequestStatus.expired);
+          _notify.notifyEvent('autoResolved', r.id); // fire-and-forget
+        } else if (r.status == RequestStatus.arrived &&
+            r.arrivedAt != null &&
+            now.difference(r.arrivedAt!) >= const Duration(minutes: 15)) {
+          await _db.collection('pickupRequests').doc(r.id).update({
+            'status': RequestStatus.missed.name,
+            'autoMissed': true,
+          });
+          _notify.notifyEvent('autoResolved', r.id); // fire-and-forget
+        }
+      } on FirebaseException catch (_) {
+        // Not due yet by the server's clock, or already resolved.
       }
     }
   }

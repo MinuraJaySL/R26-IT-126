@@ -78,13 +78,41 @@ service cloud.firestore {
     //     They can't mark a request collected before a truck has arrived.
     //   - A driver may change the status and the arrival stamp (mark
     //     arrived, reactivate a missed request, the same auto-resolve).
+    //
+    // Every time limit is measured on the server's clock (request.time),
+    // never the phone's: `createdAt` has to be the server timestamp, the
+    // pickup window has to end in the future and within the longest one the
+    // app offers (3 hours, plus a few minutes' allowance for a phone clock
+    // that is slightly off), and the two automatic changes are only
+    // accepted once they are really due.
     match /pickupRequests/{requestId} {
+      // `active` -> `expired`: not before the pickup window has ended.
+      function lapseIsDue() {
+        return request.resource.data.status != 'expired' ||
+          resource.data.status == 'expired' ||
+          request.time >= resource.data.expiresAt;
+      }
+
+      // `arrived` -> `missed` by the 15-minute timeout (autoMissed), as
+      // opposed to the resident tapping Missed themselves, which may happen
+      // at any time and is written with autoMissed false.
+      function autoMissIsDue() {
+        return !(resource.data.status == 'arrived' &&
+            request.resource.data.status == 'missed' &&
+            request.resource.data.get('autoMissed', false) == true) ||
+          request.time >= resource.data.arrivedAt + duration.value(15, 'm');
+      }
+
       allow read: if isActive() &&
         (resource.data.residentId == request.auth.uid || isDriver() || isAdmin());
       allow create: if isActive() &&
         request.resource.data.residentId == request.auth.uid &&
-        request.resource.data.status == 'active';
-      allow update: if isActive() && (
+        request.resource.data.status == 'active' &&
+        request.resource.data.createdAt == request.time &&
+        request.resource.data.expiresAt is timestamp &&
+        request.resource.data.expiresAt > request.time &&
+        request.resource.data.expiresAt <= request.time + duration.value(190, 'm');
+      allow update: if isActive() && lapseIsDue() && autoMissIsDue() && (
         (resource.data.residentId == request.auth.uid &&
           request.resource.data.diff(resource.data).affectedKeys()
             .hasOnly(['status', 'autoMissed']) &&
@@ -180,6 +208,13 @@ service cloud.firestore {
     // update). That flag is what lets the Worker send it immediately instead
     // of waiting for 6 PM, so a first announcement can never claim it.
     //
+    // The posting deadlines are enforced here on the server's clock, not
+    // only by the app: a first announcement before 6 PM the evening before
+    // collection (6 hours before the collection date's midnight), a
+    // replacement before 8 PM (4 hours before). They mirror _cutoffHour and
+    // _updateDeadlineHour in AnnounceCollectionScreen and the Worker's cron
+    // times — change them together.
+    //
     // A driver may cancel (delete) their own announcement, but only while
     // it's still un-sent and isn't an update — once residents have been
     // notified there's nothing left to take back.
@@ -188,12 +223,15 @@ service cloud.firestore {
       allow create: if isDriver() &&
         request.resource.data.driverId == request.auth.uid &&
         request.resource.data.sent == false &&
-        request.resource.data.get('isUpdate', false) == false;
+        request.resource.data.get('isUpdate', false) == false &&
+        request.resource.data.collectionDate is timestamp &&
+        request.time + duration.value(6, 'h') < request.resource.data.collectionDate;
       allow update: if isDriver() &&
         request.resource.data.driverId == request.auth.uid &&
         request.resource.data.sent == false &&
         request.resource.data.ward == resource.data.ward &&
         request.resource.data.collectionDate == resource.data.collectionDate &&
+        request.time + duration.value(4, 'h') < resource.data.collectionDate &&
         request.resource.data.get('isUpdate', false) ==
           (resource.data.sent == true || resource.data.get('isUpdate', false) == true);
       allow delete: if isDriver() &&
