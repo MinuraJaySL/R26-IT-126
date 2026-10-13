@@ -7,6 +7,7 @@ import '../../services/firestore_service.dart';
 import '../../services/location_service.dart';
 import '../../services/road_route_service.dart';
 import '../../utils/geo_utils.dart';
+import '../../widgets/location_prompt.dart';
 import '../../widgets/map_recenter_button.dart';
 
 // Same fallback used by Flag Placement / the driver map when GPS isn't
@@ -83,6 +84,11 @@ class _TrackTruckScreenState extends State<TrackTruckScreen> {
   // Only needed in "Trucks Nearby" mode, to center the map on the resident
   // instead of a specific pickup point.
   Future<void> _loadOwnLocation() async {
+    final ready = await ensureLocationAccess(
+      context,
+      purpose: 'GreenSweep uses your location to show the trucks near you.',
+    );
+    if (!ready) return;
     final pos = await LocationService().getCurrentPosition();
     if (!mounted || pos == null) return;
     final loc = LatLng(pos.latitude, pos.longitude);

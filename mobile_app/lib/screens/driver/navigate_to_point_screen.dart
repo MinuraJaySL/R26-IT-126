@@ -5,6 +5,7 @@ import 'package:latlong2/latlong.dart';
 import '../../services/location_service.dart';
 import '../../services/road_route_service.dart';
 import '../../utils/geo_utils.dart';
+import '../../widgets/location_prompt.dart';
 import '../../widgets/map_recenter_button.dart';
 
 /// Live turn-by-turn-style navigation from the driver's current position to
@@ -69,6 +70,17 @@ class _NavigateToPointScreenState extends State<NavigateToPointScreen> {
   }
 
   Future<void> _init() async {
+    // There is nothing to navigate from without the driver's position, so a
+    // refusal closes the screen rather than drawing a route from nowhere.
+    final ready = await ensureLocationAccess(
+      context,
+      purpose: 'GreenSweep needs your location to guide you to this point.',
+    );
+    if (!mounted) return;
+    if (!ready) {
+      Navigator.of(context).pop();
+      return;
+    }
     final pos = await _locationService.getCurrentPosition();
     if (pos != null && mounted) {
       setState(() => _driverPos = LatLng(pos.latitude, pos.longitude));

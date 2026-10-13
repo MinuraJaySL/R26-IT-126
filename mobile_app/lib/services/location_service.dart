@@ -1,17 +1,41 @@
 import 'package:flutter/foundation.dart';
 import 'package:geolocator/geolocator.dart';
 
-class LocationService {
-  Future<Position?> getCurrentPosition() async {
-    bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
-    if (!serviceEnabled) return null;
+/// Whether the phone's location can be read right now and, if not, what is
+/// in the way: the phone's location switch, or the app's permission (which
+/// Android stops asking about after repeated refusals — `deniedForever`).
+enum LocationAccess { ready, serviceOff, denied, deniedForever }
 
-    LocationPermission permission = await Geolocator.checkPermission();
-    if (permission == LocationPermission.denied) {
-      permission = await Geolocator.requestPermission();
-      if (permission == LocationPermission.denied) return null;
+class LocationService {
+  /// With [request] the system's permission pop-up is shown when the
+  /// permission hasn't been given yet; without it this only looks.
+  Future<LocationAccess> checkAccess({bool request = true}) async {
+    if (!await Geolocator.isLocationServiceEnabled()) {
+      return LocationAccess.serviceOff;
     }
-    if (permission == LocationPermission.deniedForever) return null;
+    LocationPermission permission = await Geolocator.checkPermission();
+    if (permission == LocationPermission.denied && request) {
+      permission = await Geolocator.requestPermission();
+    }
+    return switch (permission) {
+      LocationPermission.denied => LocationAccess.denied,
+      LocationPermission.deniedForever => LocationAccess.deniedForever,
+      _ => LocationAccess.ready,
+    };
+  }
+
+  /// Emits whenever the phone's location switch is turned on (true) or off.
+  Stream<bool> serviceEnabledStream() {
+    return Geolocator.getServiceStatusStream()
+        .map((status) => status == ServiceStatus.enabled);
+  }
+
+  Future<bool> openLocationSettings() => Geolocator.openLocationSettings();
+
+  Future<bool> openAppSettings() => Geolocator.openAppSettings();
+
+  Future<Position?> getCurrentPosition() async {
+    if (await checkAccess() != LocationAccess.ready) return null;
 
     return Geolocator.getCurrentPosition(
       locationSettings: const LocationSettings(

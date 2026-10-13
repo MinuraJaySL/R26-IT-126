@@ -10,6 +10,7 @@ import '../../services/firestore_service.dart';
 import '../../services/location_service.dart';
 import '../../widgets/map_recenter_button.dart';
 import '../../widgets/app_feedback.dart';
+import '../../widgets/location_prompt.dart';
 
 class ReportIssueScreen extends StatefulWidget {
   const ReportIssueScreen({super.key});
@@ -43,8 +44,15 @@ class _ReportIssueScreenState extends State<ReportIssueScreen> {
   }
 
   Future<void> _loadCurrentLocation() async {
-    final pos = await _locationService.getCurrentPosition();
-    if (pos != null && mounted) {
+    // Without the location the spot can still be marked by tapping the map,
+    // so a refusal here just leaves the map at its default position.
+    final ready = await ensureLocationAccess(
+      context,
+      purpose: 'GreenSweep uses your location to mark where the problem is.',
+    );
+    final pos = ready ? await _locationService.getCurrentPosition() : null;
+    if (!mounted) return;
+    if (pos != null) {
       final loc = LatLng(pos.latitude, pos.longitude);
       setState(() {
         _initialPosition = loc;
@@ -140,6 +148,13 @@ class _ReportIssueScreenState extends State<ReportIssueScreen> {
                         child: MapRecenterButton(
                           color: Colors.red,
                           onPressed: () async {
+                            if (!await ensureLocationAccess(
+                              context,
+                              purpose: 'GreenSweep uses your location to '
+                                  'show where you are on the map.',
+                            )) {
+                              return;
+                            }
                             final pos = await _locationService.getCurrentPosition();
                             if (pos != null && mounted) {
                               _mapController.move(

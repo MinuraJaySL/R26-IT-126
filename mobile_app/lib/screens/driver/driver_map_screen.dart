@@ -11,6 +11,7 @@ import '../../services/location_service.dart';
 import '../../services/road_route_service.dart';
 import '../../services/route_service.dart';
 import '../../utils/geo_utils.dart';
+import '../../widgets/location_prompt.dart';
 import '../../widgets/map_recenter_button.dart';
 import '../../widgets/app_feedback.dart';
 
@@ -104,8 +105,15 @@ class _DriverMapScreenState extends State<DriverMapScreen> {
     }
   }
 
-  void _startTrip() {
+  // A trip is only started once the location can really be read — started
+  // without it, the trip would look active while residents see no truck.
+  Future<void> _startTrip() async {
     final driverId = context.read<AuthProvider>().user!.uid;
+    final ready = await ensureLocationAccess(
+      context,
+      purpose: 'A trip shares your live location with residents.',
+    );
+    if (!ready || !mounted || _tripActive) return;
     setState(() => _tripActive = true);
     _gpsSub = _locationService.tripPositionStream().listen((pos) {
       final loc = LatLng(pos.latitude, pos.longitude);

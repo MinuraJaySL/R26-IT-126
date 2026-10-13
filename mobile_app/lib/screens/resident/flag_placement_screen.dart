@@ -11,6 +11,7 @@ import '../../services/firestore_service.dart';
 import '../../services/location_service.dart';
 import '../../utils/friendly_error.dart';
 import '../../widgets/app_feedback.dart';
+import '../../widgets/location_prompt.dart';
 import '../../widgets/map_recenter_button.dart';
 
 class FlagPlacementScreen extends StatefulWidget {
@@ -44,8 +45,16 @@ class _FlagPlacementScreenState extends State<FlagPlacementScreen> {
   }
 
   Future<void> _loadCurrentLocation() async {
-    final pos = await _locationService.getCurrentPosition();
-    if (pos != null && mounted) {
+    // Without the location the flag can still be placed by tapping the map,
+    // so a refusal here just leaves the map at its default position.
+    final ready = await ensureLocationAccess(
+      context,
+      purpose: 'GreenSweep uses your location to place the pickup flag where '
+          'you are.',
+    );
+    final pos = ready ? await _locationService.getCurrentPosition() : null;
+    if (!mounted) return;
+    if (pos != null) {
       final loc = LatLng(pos.latitude, pos.longitude);
       setState(() {
         _initialPosition = loc;
@@ -165,6 +174,13 @@ class _FlagPlacementScreenState extends State<FlagPlacementScreen> {
                         child: MapRecenterButton(
                           color: Colors.green,
                           onPressed: () async {
+                            if (!await ensureLocationAccess(
+                              context,
+                              purpose: 'GreenSweep uses your location to '
+                                  'show where you are on the map.',
+                            )) {
+                              return;
+                            }
                             final pos = await _locationService.getCurrentPosition();
                             if (pos != null && mounted) {
                               _mapController.move(
@@ -195,7 +211,10 @@ class _FlagPlacementScreenState extends State<FlagPlacementScreen> {
                 else
                   const Text(
                     'Tap on the map to place your pickup flag',
-                    style: TextStyle(color: Colors.grey),
+                    style: TextStyle(
+                      color: Colors.orange,
+                      fontWeight: FontWeight.w500,
+                    ),
                   ),
                 const SizedBox(height: 12),
                 Row(
