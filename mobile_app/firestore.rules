@@ -7,16 +7,28 @@ service cloud.firestore {
       return request.auth != null;
     }
 
-    function isDriver() {
+    function myProfile() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+    }
+
+    // Signed in with a profile an admin hasn't disabled. A disabled account
+    // can still authenticate (the app's router is what parks it on the
+    // "account disabled" screen), so everything except its own profile and
+    // its recovery request is closed to it here rather than trusting that
+    // screen. .get(...) with a default covers docs written before the
+    // `disabled` field existed.
+    function isActive() {
       return isSignedIn() &&
         exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
-        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'driver';
+        myProfile().get('disabled', false) == false;
+    }
+
+    function isDriver() {
+      return isActive() && myProfile().role == 'driver';
     }
 
     function isAdmin() {
-      return isSignedIn() &&
-        exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
-        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+      return isActive() && myProfile().role == 'admin';
     }
 
     // Each user can read their own profile doc; admins can read any profile
@@ -46,24 +58,49 @@ service cloud.firestore {
       allow delete: if isAdmin();
     }
 
-    // Any signed-in user can read bin data (driver map). Only drivers can seed/update bins.
+    // Any active user can read bin data (driver map). Only drivers can seed/update bins.
     match /bins/{binId} {
-      allow read: if isSignedIn();
+      allow read: if isActive();
       allow write: if isDriver();
     }
 
-    // Residents create/own their pickup requests; drivers can read/update any of them
-    // (mark arrived, reactivate missed). Residents can update only their own request's status.
+    // A resident sees only their own pickup requests — each one carries
+    // their location — while drivers and admins see all of them. The app's
+    // resident queries filter on residentId, which is what lets Firestore
+    // accept them under this rule.
+    //
+    // A request always starts out `active` under its creator's own id.
+    // After that nobody can move it, re-date it or hand it to someone else:
+    // an update may only touch the fields named below.
+    //   - The resident may only answer an arrival (`arrived` -> `collected`
+    //     or `missed`) or let an unanswered request lapse (`active` ->
+    //     `expired`) — see MyPickupsScreen and autoResolveStaleRequests.
+    //     They can't mark a request collected before a truck has arrived.
+    //   - A driver may change the status and the arrival stamp (mark
+    //     arrived, reactivate a missed request, the same auto-resolve).
     match /pickupRequests/{requestId} {
-      allow read: if isSignedIn();
-      allow create: if isSignedIn() && request.resource.data.residentId == request.auth.uid;
-      allow update: if isSignedIn() &&
-        (resource.data.residentId == request.auth.uid || isDriver());
+      allow read: if isActive() &&
+        (resource.data.residentId == request.auth.uid || isDriver() || isAdmin());
+      allow create: if isActive() &&
+        request.resource.data.residentId == request.auth.uid &&
+        request.resource.data.status == 'active';
+      allow update: if isActive() && (
+        (resource.data.residentId == request.auth.uid &&
+          request.resource.data.diff(resource.data).affectedKeys()
+            .hasOnly(['status', 'autoMissed']) &&
+          ((resource.data.status == 'active' &&
+              request.resource.data.status == 'expired') ||
+            (resource.data.status == 'arrived' &&
+              request.resource.data.status in ['collected', 'missed']))) ||
+        (isDriver() &&
+          request.resource.data.diff(resource.data).affectedKeys()
+            .hasOnly(['status', 'autoMissed', 'arrivedAt', 'arrivedByDriverId']))
+      );
 
       // Residents may delete their own request to undo a mistake, but only
       // within 10 minutes of placing it and only while it's still `active`
       // (once a driver has responded — arrived/etc — it's too late to undo).
-      allow delete: if isSignedIn() &&
+      allow delete: if isActive() &&
         resource.data.residentId == request.auth.uid &&
         resource.data.status == 'active' &&
         request.time < resource.data.createdAt + duration.value(10, 'm');
@@ -71,10 +108,15 @@ service cloud.firestore {
 
     // Residents report a bin problem (overflow, damage, etc) with a location
     // + note; any driver can pick it up and resolve it. Residents can't edit
-    // or delete after submitting, and can't resolve their own report.
+    // or delete after submitting, and can't resolve their own report. Like
+    // pickup requests, a resident sees only their own reports, and a report
+    // always starts out `open`.
     match /binReports/{reportId} {
-      allow read: if isSignedIn();
-      allow create: if isSignedIn() && request.resource.data.residentId == request.auth.uid;
+      allow read: if isActive() &&
+        (resource.data.residentId == request.auth.uid || isDriver() || isAdmin());
+      allow create: if isActive() &&
+        request.resource.data.residentId == request.auth.uid &&
+        request.resource.data.status == 'open';
       allow update: if isDriver();
       allow delete: if false;
     }
@@ -91,17 +133,19 @@ service cloud.firestore {
       allow delete: if false;
     }
 
-    // Drivers publish their own live GPS position; any signed-in user may read it.
+    // Drivers publish their own live GPS position; any active user may read it.
+    // Only a driver may publish one — otherwise any account could put a fake
+    // truck on residents' maps.
     // `mode` is what residents' Track Truck filters on ('pickups' only) — a
     // driver writing anything else there would silently vanish from tracking,
     // so it's constrained here rather than trusted client-side.
     match /driverLocations/{driverId} {
-      allow read: if isSignedIn();
-      allow create, update: if isSignedIn() && request.auth.uid == driverId &&
+      allow read: if isActive();
+      allow create, update: if isDriver() && request.auth.uid == driverId &&
         request.resource.data.mode in ['bins', 'pickups'] &&
         request.resource.data.lat is number &&
         request.resource.data.lng is number;
-      allow delete: if isSignedIn() && request.auth.uid == driverId;
+      allow delete: if isDriver() && request.auth.uid == driverId;
     }
 
     // Signup email-verification codes. Only touched by Cloud Functions via
@@ -140,7 +184,7 @@ service cloud.firestore {
     // it's still un-sent and isn't an update — once residents have been
     // notified there's nothing left to take back.
     match /collectionAnnouncements/{id} {
-      allow read: if isSignedIn();
+      allow read: if isActive();
       allow create: if isDriver() &&
         request.resource.data.driverId == request.auth.uid &&
         request.resource.data.sent == false &&
@@ -165,8 +209,8 @@ service cloud.firestore {
     // about them (title/body/type/relatedId/userId must stay unchanged) —
     // and can never create or delete one directly.
     match /notifications/{id} {
-      allow read: if isSignedIn() && resource.data.userId == request.auth.uid;
-      allow update: if isSignedIn() && resource.data.userId == request.auth.uid &&
+      allow read: if isActive() && resource.data.userId == request.auth.uid;
+      allow update: if isActive() && resource.data.userId == request.auth.uid &&
         request.resource.data.userId == resource.data.userId &&
         request.resource.data.title == resource.data.title &&
         request.resource.data.body == resource.data.body &&
