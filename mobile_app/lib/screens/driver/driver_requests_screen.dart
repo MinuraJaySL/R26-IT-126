@@ -67,6 +67,7 @@ class _DriverRequestsScreenState extends State<DriverRequestsScreen> {
       case RequestStatus.missed:
         return Colors.orange;
       case RequestStatus.expired:
+      case RequestStatus.closed:
         return Colors.grey;
     }
   }

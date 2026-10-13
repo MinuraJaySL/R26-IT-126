@@ -70,6 +70,31 @@ void main() {
       expect(request.status, RequestStatus.active);
     });
 
+    test('reads who closed a request and why', () async {
+      final request = PickupRequest.fromFirestore(await stored('req5', {
+        'lat': 6.9,
+        'lng': 79.8,
+        'status': 'closed',
+        'closedBy': 'drv1',
+        'closeReason': 'No waste at the location',
+        'closedAt': Timestamp.fromDate(later),
+      }));
+
+      expect(request.status, RequestStatus.closed);
+      expect(request.closedBy, 'drv1');
+      expect(request.closeReason, 'No waste at the location');
+      expect(request.closedAt, later);
+    });
+
+    test('has no close details until a driver closes it', () async {
+      final request = PickupRequest.fromFirestore(
+        await stored('req6', {'lat': 6.9, 'lng': 79.8, 'status': 'missed'}),
+      );
+      expect(request.closedBy, isNull);
+      expect(request.closeReason, isNull);
+      expect(request.closedAt, isNull);
+    });
+
     test('accepts whole-number coordinates', () async {
       final request = PickupRequest.fromFirestore(
         await stored('req4', {'lat': 7, 'lng': 80}),

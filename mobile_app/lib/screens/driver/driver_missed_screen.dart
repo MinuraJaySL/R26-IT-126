@@ -4,6 +4,7 @@ import '../../models/pickup_request.dart';
 import '../../services/firestore_service.dart';
 import '../../widgets/app_feedback.dart';
 import '../../utils/friendly_error.dart';
+import 'close_request_dialog.dart';
 
 class DriverMissedScreen extends StatelessWidget {
   const DriverMissedScreen({super.key});
@@ -64,7 +65,7 @@ class DriverMissedScreen extends StatelessWidget {
                         size: 16, color: Colors.orange),
                     const SizedBox(width: 6),
                     Text(
-                      '${requests.length} missed pickup${requests.length > 1 ? 's' : ''} — plan a follow-up visit',
+                      '${requests.length} missed pickup${requests.length > 1 ? 's' : ''} — reschedule or close each one',
                       style: const TextStyle(
                           fontSize: 13,
                           color: Colors.orange,
@@ -236,6 +237,18 @@ class _MissedCardState extends State<_MissedCard> {
                   ),
                 ),
               ],
+            ),
+            // For a visit that found nothing to collect — ends the request
+            // instead of sending a truck back again.
+            SizedBox(
+              width: double.infinity,
+              child: TextButton.icon(
+                icon: const Icon(Icons.do_not_disturb_on_outlined, size: 18),
+                label: const Text('Close — nothing to collect'),
+                onPressed:
+                    _busy ? null : () => showCloseRequestDialog(context, req),
+                style: TextButton.styleFrom(foregroundColor: Colors.red),
+              ),
             ),
           ],
         ),

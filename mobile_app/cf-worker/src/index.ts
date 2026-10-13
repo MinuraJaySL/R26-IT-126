@@ -25,7 +25,7 @@
  *   POST /admin/create-driver   — admin-only: creates a driver account server-side
  *                                 (gated on the caller's Firestore role being 'admin',
  *                                 checked after verifying their Firebase ID token)
- *   POST /notify                — sends a push for one of 5 known events; the client
+ *   POST /notify                — sends a push for one of 6 known events; the client
  *                                 supplies only an event name + doc id, never the
  *                                 notification text (see handleNotify for why)
  *   POST /bin-status             — an ESP32 bin device reports critical/normal fill
@@ -1058,7 +1058,7 @@ async function handleCreateDriver(req: Request, env: Env): Promise<Response> {
 
 /**
  * POST /notify  { idToken, event, id }
- * Records + pushes a notification for one of five real, in-app events. The
+ * Records + pushes a notification for one of six real, in-app events. The
  * client supplies only an event name and a Firestore document id — never
  * the notification text — and this Worker re-derives the target user and
  * the message itself by reading the real document. That's deliberate: if
@@ -1139,6 +1139,22 @@ async function handleNotify(req: Request, env: Env): Promise<Response> {
       messageBody = expired
         ? "No truck arrived within your selected time window."
         : "There was no response within 15 minutes, so this request was automatically closed.";
+      break;
+    }
+    case "requestClosed": {
+      // A driver ended a missed request instead of rescheduling it (see the
+      // app's closeMissedRequest). Only sent for a request that really is
+      // closed, so this can't be used to tell a resident it was when it
+      // wasn't.
+      const doc = await firestoreGet(env, token, `pickupRequests/${id}`);
+      if (!doc) throw new ApiError("Request not found.", 404);
+      if (doc.status !== "closed") throw new ApiError("Request is not closed.", 409);
+      targetUid = doc.residentId as string;
+      title = "Pickup request closed by the driver";
+      const reason = ((doc.closeReason as string | null) ?? "").trim();
+      messageBody =
+        (reason ? `Reason: ${reason}. ` : "") +
+        "Place a new request when your waste is ready.";
       break;
     }
     default:

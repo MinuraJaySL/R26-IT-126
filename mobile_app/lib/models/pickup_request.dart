@@ -1,6 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 
-enum RequestStatus { active, arrived, collected, missed, expired }
+enum RequestStatus { active, arrived, collected, missed, expired, closed }
 
 class PickupRequest {
   final String id;
@@ -21,6 +21,12 @@ class PickupRequest {
   // set status to `missed` — lets the resident's card explain why, instead
   // of showing the same message as a request they marked missed themselves.
   final bool autoMissed;
+  // Set when a driver ends a missed request for good (status `closed`)
+  // instead of rescheduling it — who did, when, and the reason the resident
+  // is shown. See FirestoreService.closeMissedRequest.
+  final String? closedBy;
+  final String? closeReason;
+  final DateTime? closedAt;
 
   PickupRequest({
     required this.id,
@@ -33,6 +39,9 @@ class PickupRequest {
     this.arrivedAt,
     this.arrivedByDriverId,
     this.autoMissed = false,
+    this.closedBy,
+    this.closeReason,
+    this.closedAt,
   });
 
   factory PickupRequest.fromFirestore(DocumentSnapshot doc) {
@@ -51,6 +60,9 @@ class PickupRequest {
       arrivedAt: (d['arrivedAt'] as Timestamp?)?.toDate(),
       arrivedByDriverId: d['arrivedByDriverId'],
       autoMissed: d['autoMissed'] ?? false,
+      closedBy: d['closedBy'],
+      closeReason: d['closeReason'],
+      closedAt: (d['closedAt'] as Timestamp?)?.toDate(),
     );
   }
 

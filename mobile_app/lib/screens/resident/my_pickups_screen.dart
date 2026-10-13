@@ -194,6 +194,8 @@ class _RequestCard extends StatelessWidget {
         return Colors.orange;
       case RequestStatus.expired:
         return Colors.grey;
+      case RequestStatus.closed:
+        return Colors.red;
     }
   }
 
@@ -209,6 +211,8 @@ class _RequestCard extends StatelessWidget {
         return Icons.warning_amber_rounded;
       case RequestStatus.expired:
         return Icons.cancel_outlined;
+      case RequestStatus.closed:
+        return Icons.do_not_disturb_on_outlined;
     }
   }
 
@@ -391,6 +395,27 @@ class _RequestCard extends StatelessWidget {
                       style: TextStyle(
                           fontSize: 13,
                           color: Colors.grey,
+                          fontWeight: FontWeight.w500),
+                    ),
+                  ),
+                ],
+              ),
+            ] else if (request.status == RequestStatus.closed) ...[
+              const SizedBox(height: 8),
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Icon(Icons.do_not_disturb_on_outlined,
+                      size: 16, color: Colors.red),
+                  const SizedBox(width: 4),
+                  Expanded(
+                    child: Text(
+                      'Closed by the driver'
+                      '${(request.closeReason ?? '').isEmpty ? '' : ': ${request.closeReason}'}.\n'
+                      'Place a new request when your waste is ready.',
+                      style: const TextStyle(
+                          fontSize: 13,
+                          color: Colors.red,
                           fontWeight: FontWeight.w500),
                     ),
                   ),

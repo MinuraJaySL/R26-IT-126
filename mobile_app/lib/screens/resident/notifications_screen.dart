@@ -14,6 +14,7 @@ class NotificationsScreen extends StatelessWidget {
     'reportResolved': Icons.report_problem_outlined,
     'recoveryResolved': Icons.lock_open_outlined,
     'autoResolved': Icons.timer_off_outlined,
+    'requestClosed': Icons.do_not_disturb_on_outlined,
     'announcement': Icons.campaign_outlined,
   };
 

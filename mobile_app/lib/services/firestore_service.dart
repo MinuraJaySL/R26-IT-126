@@ -142,6 +142,25 @@ class FirestoreService {
     }
   }
 
+  // A driver ends a missed request for good, with the reason the resident
+  // is then shown and notified with — for when rescheduling would be
+  // pointless (they went, and there was nothing to collect). Final: neither
+  // side can change a closed request (firestore.rules), so a resident who
+  // still needs a pickup places a new one.
+  Future<void> closeMissedRequest(
+    String id,
+    String driverId,
+    String reason,
+  ) async {
+    await _db.collection('pickupRequests').doc(id).update({
+      'status': RequestStatus.closed.name,
+      'closedBy': driverId,
+      'closeReason': reason,
+      'closedAt': FieldValue.serverTimestamp(),
+    });
+    _notify.notifyEvent('requestClosed', id); // fire-and-forget
+  }
+
   // Only succeeds within 10 minutes of creation while the request is still
   // `active` — enforced server-side by firestore.rules, not just here.
   Future<void> deleteRequest(String id) {

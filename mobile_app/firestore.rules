@@ -78,6 +78,10 @@ service cloud.firestore {
     //     They can't mark a request collected before a truck has arrived.
     //   - A driver may change the status and the arrival stamp (mark
     //     arrived, reactivate a missed request, the same auto-resolve).
+    //   - A driver may also end a `missed` request for good (`closed`) when
+    //     another visit would be pointless, but only under their own id, at
+    //     the server's time and with a reason — the resident is shown it.
+    //     `closed` is final: nobody can change the request afterwards.
     //
     // Every time limit is measured on the server's clock (request.time),
     // never the phone's: `createdAt` has to be the server timestamp, the
@@ -103,6 +107,20 @@ service cloud.firestore {
           request.time >= resource.data.arrivedAt + duration.value(15, 'm');
       }
 
+      // Closing: only from `missed`, and the three close fields may only
+      // be written as part of it.
+      function closingIsValid() {
+        return request.resource.data.status == 'closed'
+          ? (resource.data.status == 'missed' &&
+              request.resource.data.closedBy == request.auth.uid &&
+              request.resource.data.closedAt == request.time &&
+              request.resource.data.closeReason is string &&
+              request.resource.data.closeReason.size() > 0 &&
+              request.resource.data.closeReason.size() <= 200)
+          : !request.resource.data.diff(resource.data).affectedKeys()
+              .hasAny(['closedBy', 'closeReason', 'closedAt']);
+      }
+
       allow read: if isActive() &&
         (resource.data.residentId == request.auth.uid || isDriver() || isAdmin());
       allow create: if isActive() &&
@@ -112,7 +130,8 @@ service cloud.firestore {
         request.resource.data.expiresAt is timestamp &&
         request.resource.data.expiresAt > request.time &&
         request.resource.data.expiresAt <= request.time + duration.value(190, 'm');
-      allow update: if isActive() && lapseIsDue() && autoMissIsDue() && (
+      allow update: if isActive() && resource.data.status != 'closed' &&
+        lapseIsDue() && autoMissIsDue() && (
         (resource.data.residentId == request.auth.uid &&
           request.resource.data.diff(resource.data).affectedKeys()
             .hasOnly(['status', 'autoMissed']) &&
@@ -120,9 +139,10 @@ service cloud.firestore {
               request.resource.data.status == 'expired') ||
             (resource.data.status == 'arrived' &&
               request.resource.data.status in ['collected', 'missed']))) ||
-        (isDriver() &&
+        (isDriver() && closingIsValid() &&
           request.resource.data.diff(resource.data).affectedKeys()
-            .hasOnly(['status', 'autoMissed', 'arrivedAt', 'arrivedByDriverId']))
+            .hasOnly(['status', 'autoMissed', 'arrivedAt', 'arrivedByDriverId',
+              'closedBy', 'closeReason', 'closedAt']))
       );
 
       // Residents may delete their own request to undo a mistake, but only
